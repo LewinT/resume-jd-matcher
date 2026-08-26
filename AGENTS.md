@@ -19,3 +19,34 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Never put secrets, API keys, or other credentials in source code.
 - Run relevant checks after meaningful changes and report the results.
 - Do not add a database, authentication, OCR, or extra infrastructure unless the user explicitly requests it.
+
+## Review workflow
+
+- External AI feedback should be treated as a suggestion, not as ground truth.
+- Before applying feedback from Gemini or other reviewers, inspect the current code and verify whether the issue is real.
+- Prefer the smallest fix that solves the verified issue.
+- Do not refactor unrelated code during bug fixes.
+
+## Validation
+
+After meaningful changes:
+
+- run `npm run lint`
+- run `npm run build` before ending a major daily milestone
+- report any warnings or errors clearly
+- do not claim a feature is complete only because the code compiles; the user will manually test important behavior
+
+## Git
+
+- Keep changes small enough to form understandable commits.
+- Do not commit secrets, environment files, build artifacts, or dependency folders.
+- Do not modify Git history unless explicitly requested.
+
+## Project context
+
+When starting a new task or conversation, read:
+- AGENTS.md
+- PROJECT_BRIEF.md
+- AI_DEV_LOG.md
+
+before making substantial changes.

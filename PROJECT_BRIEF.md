@@ -77,3 +77,81 @@ Day 1 does not include:
 - Authentication
 - OCR
 - Deployment
+
+## Language support
+
+The application is designed to support multilingual resume-to-job matching.
+
+The MVP will primarily be tested with:
+- English resumes
+- German resumes
+- English job descriptions
+- German job descriptions
+
+Resume and Job Description may be written in different languages.
+
+Matching should be semantic rather than based only on exact keyword equality.
+
+The UI may remain in English for the MVP.
+
+Analysis output should preferably follow the primary language of the Job Description.
+
+## Matching principle
+
+The final match score should be explainable.
+
+The system should distinguish between:
+- required skills
+- preferred skills
+- relevant experience
+- responsibilities
+- missing or weak requirements
+
+The LLM should help extract and normalize information.
+
+The final score should not be an unexplained number invented by the model.
+
+## Resume integrity
+
+The application must never invent:
+- skills
+- employers
+- qualifications
+- achievements
+- responsibilities
+- metrics
+- years of experience
+
+Suggestions may only improve wording or visibility of information that is already supported by the resume.
+
+If the Job Description requires something not found in the resume, the tool should identify it as a gap rather than fabricate it.
+
+## Privacy
+
+For the first MVP:
+
+- uploaded resumes should not be permanently stored
+- resume files should only be processed for the current analysis
+- no user account is required
+- no resume history is required
+
+## Current implementation status
+
+Day 1 completed:
+- static homepage
+- PDF resume file selection
+- basic client-side PDF validation
+- selected filename display
+- Job Description controlled textarea
+- Analyze button validation
+- mock analysis results
+- responsive layout
+- lint passes
+- production build passes
+
+Not yet implemented:
+- PDF text extraction
+- real AI analysis
+- explainable scoring
+- API routes
+- deployment
