@@ -4,40 +4,108 @@
 
 ### Goal
 
-Build the frontend prototype for the Resume ↔ JD Matcher.
+Build a frontend-only prototype for the Resume ↔ JD Matcher.
 
-### Current Status
+No PDF parsing, AI API, database, authentication, OCR, or real scoring.
 
-- Next.js project created and running locally.
-- Codex connected to the local repository.
-- AGENTS.md updated.
-- PROJECT_BRIEF.md created.
-- Product UI has not been implemented yet.
+### What was implemented
 
-### AI Workflow
+- Replaced the default Next.js starter page.
+- Added PDF resume file selection.
+- Added basic client-side PDF validation.
+- Added selected filename display.
+- Added Job Description textarea using React state.
+- Added Analyze button enabled only when:
+  - a valid PDF is selected
+  - Job Description contains non-whitespace text
+- Added mock analysis results.
+- Added automatic result reset when inputs change.
 
-**ChatGPT**
-- Project planning
-- Learning and explanations
-- Scope decisions
+### Manual tests performed
 
-**Codex**
-- Primary coding agent
-- Repository inspection
-- Code implementation and testing
+- Valid `.pdf` accepted.
+- `.jpg` rejected.
+- Error cleared after selecting a valid PDF.
+- Refresh clears temporary state.
+- Analyze button disabled with no PDF.
+- Analyze button disabled with no Job Description.
+- Analyze button disabled when Job Description contains whitespace only.
+- Analyze button enabled when both inputs are valid.
+- Mock result appears correctly after clicking Analyze.
 
-**Gemini**
-- Independent code reviewer
+### AI workflow
 
-### What I Learned
+#### ChatGPT
+Used for:
+- planning Day 1 scope
+- explaining Git
+- explaining React state and client components
+- evaluating Gemini review feedback
+- keeping implementation scope small
 
-- Codex can directly read and modify the same local repository opened in VS Code.
-- AGENTS.md contains working instructions for the coding agent.
-- PROJECT_BRIEF.md contains the product goals and MVP scope.
-- Implemented client-side PDF validation using React state.
-- Learned the difference between selecting a file and actually reading/uploading it.
-- Manually tested valid PDF, invalid JPG, error recovery, and page refresh behavior.
+#### Codex
+Used for:
+- repository inspection
+- updating AGENTS.md
+- creating PROJECT_BRIEF.md
+- implementing the UI
+- adding React state
+- adding PDF validation
+- adding button validation
+- adding mock results
+- validating Gemini feedback
+- running lint
 
-### Problems / Questions
+#### Gemini
+Used as an independent reviewer.
 
-None yet.
+Gemini identified that checking only:
+
+`file.type === "application/pdf"`
+
+could reject valid PDFs when the browser reports an empty MIME type.
+
+Codex independently verified the issue and changed validation so that a file is accepted when:
+- MIME type is `application/pdf`
+OR
+- filename ends in `.pdf` case-insensitively
+
+### Validation
+
+- `npm run lint` passed
+- `npm run build` passed
+- production build completed successfully
+
+### Git
+
+Initialized Git repository.
+
+Created first commit:
+
+`feat: complete Day 1 resume matcher prototype`
+
+Pushed repository to GitHub.
+
+### What I learned
+
+- Codex can directly modify the same local repository opened in VS Code.
+- React state is temporary page memory.
+- Selecting a file is different from reading or uploading it.
+- Client-side PDF validation is only an initial check.
+- MIME type alone may not be reliable.
+- Mock data is useful for validating UI before backend logic exists.
+- `git commit` creates a local project snapshot.
+- `git push` uploads commits to GitHub.
+
+### Problems / surprises
+
+- Git had not been initialized automatically.
+- `git add .` produced LF/CRLF warnings on Windows.
+- Gemini initially took several minutes because it inspected too much of the repository.
+
+### Open questions
+
+- How PDF text extraction will work.
+- Whether PDF parsing should happen client-side or server-side.
+- How multilingual semantic matching will be implemented.
+- How the final match score should be calculated.
