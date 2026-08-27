@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Project working rules
 
-- The project owner is a beginner programmer. Explain important new concepts in beginner-friendly language when they first appear, without adding unnecessary detail.
+- The project owner is not a professional programmer. Explain important new concepts in beginner-friendly language when they first appear, without adding unnecessary detail.
 - Prefer the simplest implementation that works for this MVP.
 - Work in small, testable features and avoid bundling unrelated changes together.
 - Avoid unnecessary dependencies, abstractions, and infrastructure.
@@ -50,3 +50,22 @@ When starting a new task or conversation, read:
 - AI_DEV_LOG.md
 
 before making substantial changes.
+
+## File processing
+
+- Resume PDFs should be processed server-side.
+- Do not permanently store uploaded resume files unless explicitly requested.
+- Prefer in-memory processing for the MVP.
+- OCR is out of scope unless explicitly added later.
+- Treat client-side file validation as preliminary only; important validation must also happen server-side.
+- Uploaded files should have reasonable size and resource limits.
+
+## API changes
+
+When adding or modifying API routes:
+
+- validate user input on the server
+- return clear user-facing error messages for expected failures
+- avoid exposing internal stack traces or implementation details
+- keep API behavior simple and explicit
+- run lint and build after meaningful backend changes

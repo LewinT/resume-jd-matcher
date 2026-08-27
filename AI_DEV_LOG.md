@@ -109,3 +109,141 @@ Pushed repository to GitHub.
 - Whether PDF parsing should happen client-side or server-side.
 - How multilingual semantic matching will be implemented.
 - How the final match score should be calculated.
+
+## Day 2
+
+### Goal
+
+Replace the mock PDF behavior with real server-side PDF text extraction.
+
+No LLM analysis yet.
+
+### Architecture decision
+
+Compared two approaches:
+
+1. client-side PDF parsing
+2. server-side PDF parsing
+
+Chose server-side parsing because:
+- it fits future LLM integration better
+- PDF parsing stays out of the browser bundle
+- validation can be centralized on the server
+- uploaded files can be processed in memory
+- future API credentials can remain server-side
+
+### PDF library decision
+
+Compared:
+- unpdf
+- pdf-parse
+- pdfjs-dist
+
+Selected `unpdf` because:
+- simple high-level text extraction API
+- good serverless compatibility
+- fewer worker/bundling concerns
+- suitable for a small Next.js/Vercel MVP
+
+### What was implemented
+
+Created:
+
+`POST /api/extract-resume`
+
+The endpoint:
+- accepts a PDF using FormData
+- validates the uploaded file
+- rejects files larger than 4 MB
+- verifies the PDF signature
+- limits PDFs to 50 pages
+- parses the PDF entirely in memory
+- extracts merged plain text
+- rejects unreadable or empty PDFs
+- returns extracted text and page count as JSON
+
+Frontend now:
+- uploads the selected PDF to the API
+- shows a loading state
+- handles extraction errors
+- displays the extracted resume text for development verification
+
+### Manual tests
+
+Successfully tested:
+- normal English text-based resume PDF
+- normal German text-based resume PDF
+- German Unicode characters such as ä, ö, ü, ß
+- image upload rejection
+- invalid/fake PDF rejection
+- oversized file rejection
+- extraction error handling
+
+### Known limitation
+
+Multi-column PDF layouts are not reconstructed correctly.
+
+Text extraction may return sections in a different order from the visual PDF layout.
+
+Example:
+
+A visually separated left/right column may be flattened into one text stream.
+
+Decision:
+Do not solve layout reconstruction in the one-week MVP.
+
+The extracted semantic content is currently good enough for LLM analysis.
+
+### What I learned
+
+- Difference between client-side and server-side processing.
+- What a Next.js API Route Handler does.
+- What FormData is.
+- How fetch() sends a file from the browser to the server.
+- Difference between selecting, uploading, parsing, and storing a file.
+- Why server-side validation is still needed even when the browser already validates a file.
+- What in-memory processing means.
+- Why scanned PDFs require OCR.
+- Why PDF visual layout and extracted text order can differ.
+
+### AI workflow
+
+#### ChatGPT
+
+Used for:
+- Day 2 architecture planning
+- evaluating server-side vs client-side parsing
+- interpreting PDF extraction quality
+- debugging PowerShell curl syntax
+- deciding whether multi-column layout reconstruction was necessary for the MVP
+
+#### Codex
+
+Used for:
+- comparing PDF parsing libraries
+- implementing the extraction API
+- adding unpdf
+- connecting the frontend to the API
+- implementing loading/error states
+- running lint/build
+
+#### Gemini
+
+Used for:
+- independent review of Day 2 implementation
+
+### Validation
+
+- `npm run lint` passed
+- `npm run build` passed
+- real English resume extraction passed
+- real German resume extraction passed
+
+### Open questions for Day 3
+
+- Which LLM/API should perform structured extraction?
+- What JSON schema should represent a resume?
+- What JSON schema should represent a Job Description?
+- How should multilingual semantic matching work?
+- How should uncertainty and ambiguous PDF reading order be handled?
+- How should the final match score be calculated?

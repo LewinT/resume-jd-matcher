@@ -2,87 +2,44 @@
 
 ## Product goal
 
-Build a small, real web application in approximately one week. The application will help a user compare a resume with a job description and receive an explainable assessment of how well they match.
+Build a small, real web application in approximately one week.
+
+The application helps users compare a resume with a job description and receive an explainable assessment of how well they match.
 
 The project is also a learning exercise in AI-assisted software development. Development should stay incremental, understandable, and focused on a working MVP rather than production-scale complexity.
 
 ## Target user workflow
 
 1. The user opens the website.
-2. The user selects a PDF resume.
+2. The user uploads a PDF resume.
 3. The user pastes a job description.
 4. The user clicks **Analyze Match**.
 5. The application extracts text from the resume PDF.
-6. The application compares the resume with the job description using an LLM.
+6. The application analyzes the resume and job description using an LLM.
 7. The application returns an explainable result.
 
 ## Final one-week MVP
 
 The completed MVP should provide:
 
-- A simple homepage for entering the required information.
-- A PDF resume upload flow.
-- A field for a pasted job description.
-- Text extraction from supported resume PDFs.
-- LLM-based comparison of the resume and job description.
+- A simple homepage.
+- PDF resume upload.
+- Job Description input.
+- Text extraction from supported PDF resumes.
+- LLM-based structured analysis.
 - An overall match score.
 - Matched skills.
 - Missing or weak skills.
 - Resume improvement suggestions.
-- Useful error messages when a file is unsupported or text cannot be extracted.
-
-## PDF scope and privacy
-
-- Support normal text-based PDF resumes only.
-- Do not implement OCR for scanned or image-only PDFs in the first MVP.
-- If usable text cannot be extracted, show a helpful error message.
-- Do not permanently store users' resumes in the first MVP.
-- The intended flow is: receive the PDF, extract its text, analyze it, and return the result.
-
-## Accuracy rule
-
-The application must never invent skills, experience, employers, achievements, qualifications, or metrics that are not supported by the user's resume.
-
-## Out of scope for the first MVP
-
-- User accounts
-- Authentication
-- Payments
-- Resume history
-- A database
-- OCR
-- Job scraping
-- Social features
-- Complex animations
-- Unnecessary libraries or infrastructure
-
-## Day 1 scope
-
-Day 1 is limited to a basic frontend workflow:
-
-- A simple homepage
-- A PDF resume file selector
-- Basic PDF file validation
-- Display of the selected filename
-- A Job Description textarea
-- An **Analyze Match** button
-- A mock analysis result
-
-Day 1 does not include:
-
-- PDF text extraction
-- An LLM or AI API
-- Real scoring
-- A database
-- Authentication
-- OCR
-- Deployment
+- Useful error messages for unsupported or unreadable files.
+- A deployed public demo.
 
 ## Language support
 
-The application is designed to support multilingual resume-to-job matching.
+The application is designed for multilingual resume-to-job matching.
 
 The MVP will primarily be tested with:
+
 - English resumes
 - German resumes
 - English job descriptions
@@ -101,6 +58,7 @@ Analysis output should preferably follow the primary language of the Job Descrip
 The final match score should be explainable.
 
 The system should distinguish between:
+
 - required skills
 - preferred skills
 - relevant experience
@@ -114,6 +72,7 @@ The final score should not be an unexplained number invented by the model.
 ## Resume integrity
 
 The application must never invent:
+
 - skills
 - employers
 - qualifications
@@ -126,32 +85,134 @@ Suggestions may only improve wording or visibility of information that is alread
 
 If the Job Description requires something not found in the resume, the tool should identify it as a gap rather than fabricate it.
 
+When extracted PDF text contains ambiguous layout or reading order, downstream AI analysis should prefer explicit evidence and avoid inventing uncertain relationships.
+
+## PDF scope
+
+The MVP supports normal text-based PDF resumes.
+
+OCR for scanned or image-only PDFs is out of scope.
+
+Current limits:
+
+- maximum upload size: 4 MB
+- maximum page count: 50 pages
+
+If usable text cannot be extracted, the application should show a helpful error message.
+
 ## Privacy
 
-For the first MVP:
+Uploaded resumes are currently:
 
-- uploaded resumes should not be permanently stored
-- resume files should only be processed for the current analysis
-- no user account is required
-- no resume history is required
+- received by the server only for the active request
+- processed in memory
+- not written to disk
+- not stored in a database
+- not permanently retained
+- not sent to an AI provider yet
+
+Future LLM integration should preserve this privacy-first design as much as practical.
+
+No user account or resume history is required for the MVP.
+
+## Out of scope for the first MVP
+
+- user accounts
+- authentication
+- payments
+- resume history
+- database
+- OCR
+- job scraping
+- social features
+- complex animations
+- unnecessary infrastructure
+
+## Current architecture
+
+Current Day 2 flow:
+
+PDF Resume
+→ browser file selection
+→ POST /api/extract-resume
+→ server-side PDF validation
+→ in-memory PDF parsing with unpdf
+→ extracted resume text
+→ frontend display
+
+The PDF file is not permanently stored.
+
+Planned final flow:
+
+PDF Resume
+→ server-side text extraction
+→ structured resume analysis with an LLM
+
+Job Description
+→ structured requirement analysis with an LLM
+
+Resume Profile + Job Profile
+→ explainable matching logic
+→ match score, strengths, gaps, and suggestions
 
 ## Current implementation status
 
-Day 1 completed:
-- static homepage
+### Day 1 completed
+
+- homepage UI
 - PDF resume file selection
-- basic client-side PDF validation
+- client-side PDF validation
 - selected filename display
 - Job Description controlled textarea
 - Analyze button validation
-- mock analysis results
+- mock result UI
 - responsive layout
-- lint passes
-- production build passes
+- lint passed
+- production build passed
 
-Not yet implemented:
-- PDF text extraction
-- real AI analysis
+### Day 2 completed
+
+- server-side PDF extraction API
+- server-side PDF validation
+- in-memory PDF parsing using unpdf
+- file-size protection
+- page-count protection
+- invalid/damaged PDF handling
+- frontend-to-backend PDF upload
+- loading state
+- extraction error state
+- extracted text preview
+- English resume PDF tested successfully
+- German resume PDF tested successfully
+- German Unicode characters tested successfully
+- lint passed
+- production build passed
+
+### Not yet implemented
+
+- LLM integration
+- structured resume extraction
+- structured Job Description extraction
+- semantic matching
 - explainable scoring
-- API routes
+- final resume suggestions
 - deployment
+
+## Known limitations
+
+- Multi-column PDF layouts may not preserve the original visual reading order during text extraction.
+- Scanned/image-only PDFs are not supported.
+- Extracted text is currently shown mainly for development verification.
+
+These limitations are acceptable for the current MVP unless they block downstream LLM analysis.
+
+When extracted PDF text contains ambiguous layout or ordering, downstream AI analysis should prefer explicit evidence and avoid inventing uncertain relationships.
+
+## Next milestone
+
+Day 3 will focus on:
+
+- integrating an LLM
+- converting extracted resume text into a structured resume profile
+- converting the Job Description into structured requirements
+- testing English and German inputs
