@@ -130,30 +130,19 @@ No user account or resume history is required for the MVP.
 
 ## Current architecture
 
-Current Day 2 flow:
+Current Day 3 flow:
 
 PDF Resume
-→ browser file selection
-→ POST /api/extract-resume
-→ server-side PDF validation
-→ in-memory PDF parsing with unpdf
-→ extracted resume text
-→ frontend display
+→ server-side PDF extraction
+→ resume text
 
-The PDF file is not permanently stored.
-
-Planned final flow:
-
-PDF Resume
-→ server-side text extraction
-→ structured resume analysis with an LLM
-
-Job Description
-→ structured requirement analysis with an LLM
+Resume text + Job Description
+→ server-side LLM structured analysis
+→ Resume Profile + Job Profile
 
 Resume Profile + Job Profile
-→ explainable matching logic
-→ match score, strengths, gaps, and suggestions
+→ planned explainable matching logic
+→ final result
 
 ## Current implementation status
 
@@ -188,14 +177,25 @@ Resume Profile + Job Profile
 - lint passed
 - production build passed
 
+### Day 3 completed
+
+- server-side LLM integration
+- structured Resume Profile extraction
+- structured Job Profile extraction
+- English/German-ready structured schema
+- evidence-backed extraction
+- uncertainty handling
+- frontend end-to-end analysis flow
+- duplicate analysis protection
+
 ### Not yet implemented
 
-- LLM integration
-- structured resume extraction
-- structured Job Description extraction
 - semantic matching
 - explainable scoring
-- final resume suggestions
+- matched / missing requirement logic
+- final result UI
+- resume suggestions
+- deployment protection
 - deployment
 
 ## Known limitations
