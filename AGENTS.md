@@ -69,3 +69,35 @@ When adding or modifying API routes:
 - avoid exposing internal stack traces or implementation details
 - keep API behavior simple and explicit
 - run lint and build after meaningful backend changes
+
+## AI matching and scoring
+
+When working on resume-to-job matching:
+
+- Keep semantic judgment separate from numerical scoring.
+- The LLM may classify semantic relationships, but it must not invent the final match percentage.
+- Final scores must be calculated by deterministic application code using explicit rules.
+- Matching must be grounded in existing Resume Profile evidence.
+- Do not allow the model to create new resume evidence during matching.
+- Missing Job Description requirements must remain gaps and must never be added to the candidate's resume.
+- Clear multilingual or naming equivalents may match when supported.
+- Merely related technologies or concepts must not automatically count as matches.
+- Prefer `partial` only when relevant evidence exists but the full requirement is not supported.
+- Use `uncertain` when the evidence itself cannot be interpreted or associated safely.
+- Prefer conservative results over unsupported positive matches.
+- Empty scoring categories should be treated as not applicable rather than as failures.
+
+## Paid AI requests
+
+LLM API calls are paid external operations.
+
+When modifying workflows that call an LLM:
+
+- Avoid unnecessary duplicate requests.
+- Do not trigger paid API calls from React effects or rerenders.
+- Keep paid requests tied to explicit user actions.
+- Reuse already successful intermediate results when retrying a later failed step where practical.
+- Validate requests before calling the AI provider.
+- Do not expose API keys to client-side code.
+- Do not log secrets or full resume contents unnecessarily.
+- Public deployment must include reasonable abuse and cost protection.

@@ -6,13 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:scoring": "node --test lib/match-scoring.test.mjs"
   },
   "dependencies": {
     "next": "16.3.3",
+    "openai": "^7.8.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "unpdf": "^1.8.1"
+    "unpdf": "^1.8.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

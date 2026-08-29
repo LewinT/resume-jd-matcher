@@ -539,3 +539,563 @@ Resume Profile + Job Profile
 → matched requirements
 → missing / weak requirements
 → final match score
+
+## Day 4
+
+### Goal
+
+Turn the structured Resume Profile and Job Profile from Day 3 into an explainable Resume ↔ Job Description match result.
+
+The main Day 4 principle was:
+
+LLM
+→ semantic comparison
+
+Application code
+→ deterministic numerical scoring
+
+The LLM must not invent the final match percentage.
+
+
+### Starting point
+
+At the beginning of Day 4, the application already supported:
+
+PDF Resume
+→ text extraction
+→ structured Resume Profile
+
+Job Description
+→ structured Job Profile
+
+The frontend could display both profiles, but no real matching or score existed yet.
+
+
+### Matching architecture decision
+
+The matching pipeline was designed as:
+
+Resume Profile + Job Profile
+→ flatten Job Description requirements
+→ build Resume evidence catalogue
+→ LLM semantic comparison
+→ validate semantic output
+→ deterministic TypeScript scoring
+→ Match Result
+
+A separate endpoint was created:
+
+`POST /api/match`
+
+`/api/analyze` remains responsible only for structured Resume and Job Description extraction.
+
+This separation makes debugging easier:
+
+- incorrect extracted profile → inspect `/api/analyze`
+- incorrect semantic comparison → inspect `/api/match`
+- incorrect percentage → inspect deterministic scoring logic
+
+
+### Requirement representation
+
+The Job Profile is converted into individual requirements with stable application-generated IDs.
+
+Examples:
+
+- `skill-0`
+- `experience-0`
+- `responsibility-0`
+- `education-0`
+- `language-0`
+
+Each requirement includes:
+
+- category
+- description
+- importance
+- Job Description evidence
+
+Requirement importance is:
+
+- required
+- preferred
+- unspecified
+
+Responsibilities currently default to `unspecified` because the Day 3 extraction schema does not assign explicit importance to them.
+
+
+### Resume evidence catalogue
+
+Application code creates stable IDs for evidence already present in the Resume Profile.
+
+Examples:
+
+- `skill-0-evidence-0`
+- `experience-0-evidence-0`
+- `experience-0-highlight-0-evidence-0`
+- `education-0-evidence-0`
+- `language-0-evidence-0`
+
+The semantic LLM may reference only these IDs.
+
+It is not allowed to write arbitrary new resume evidence into the Match Result.
+
+Application code rejects unknown evidence IDs.
+
+
+### Match statuses
+
+Four statuses were defined.
+
+#### matched
+
+Strong evidence supports the complete requirement.
+
+Clear semantic or multilingual equivalents are allowed.
+
+Example:
+
+`FEM-Simulation`
+↔
+`finite element analysis`
+
+#### partial
+
+Relevant evidence exists, but only part of the requirement is supported.
+
+Example:
+
+JD:
+`5 years of Python experience`
+
+Resume:
+`Python`
+
+The skill is supported, but the required duration is not.
+
+#### missing
+
+No relevant Resume evidence supports the requirement.
+
+Example:
+
+JD:
+`SAP`
+
+Resume:
+No SAP evidence.
+
+#### uncertain
+
+Potentially relevant evidence exists, but the relationship cannot be determined safely.
+
+This differs from partial:
+
+- partial = known but incomplete
+- uncertain = evidence or association itself is ambiguous
+
+
+### Semantic matching safeguards
+
+The LLM returns only:
+
+- requirement ID
+- matched / partial / missing / uncertain
+- short explanation
+- Resume evidence IDs
+
+The LLM does not return:
+
+- overall percentage
+- category percentages
+- numerical confidence
+- new resume claims
+- new requirements
+- new free-form resume evidence
+
+Application code validates that:
+
+- every JD requirement is compared exactly once
+- no unknown requirements appear
+- no duplicate requirements appear
+- no unknown evidence IDs appear
+- matched and partial results contain evidence
+- missing results contain no resume evidence
+
+This prevents the semantic comparison layer from inventing unsupported candidate information.
+
+
+### Deterministic scoring
+
+The selected MVP scoring rubric is:
+
+Importance weights:
+
+- required = 2
+- preferred = 1
+- unspecified = 1
+
+Status values:
+
+- matched = 1
+- partial = 0.5
+- missing = 0
+- uncertain = 0
+
+For every requirement:
+
+`earnedPoints = importanceWeight × statusValue`
+
+`possiblePoints = importanceWeight`
+
+Overall score:
+
+`total earned points / total possible points × 100`
+
+Scores are rounded to the nearest whole percentage.
+
+The LLM never calculates this percentage.
+
+
+### Category breakdown
+
+The same deterministic formula is calculated independently for:
+
+- skills
+- experience
+- responsibilities
+- education
+- languages
+
+If the Job Description contains no requirements in a category:
+
+- score = null
+- earnedPoints = 0
+- possiblePoints = 0
+
+The frontend displays this as:
+
+`N/A`
+
+rather than incorrectly displaying `0%`.
+
+The overall score is calculated directly from all individual requirements.
+
+It is not an average of category percentages.
+
+
+### Deterministic scoring test
+
+A controlled backend test used:
+
+Resume:
+- Python
+
+Job Description:
+- Python required
+- SAP required
+- five years of Python preferred
+
+Expected semantic result:
+
+- Python → matched
+- SAP → missing
+- five years Python → partial
+
+Manual calculation:
+
+Python:
+
+`2 × 1 = 2`
+
+SAP:
+
+`2 × 0 = 0`
+
+Five years Python:
+
+`1 × 0.5 = 0.5`
+
+Total earned:
+
+`2.5`
+
+Total possible:
+
+`5`
+
+Expected score:
+
+`2.5 / 5 × 100 = 50%`
+
+The `/api/match` endpoint returned:
+
+- overallScore = 50
+- skills score = 50
+- experience score = 50
+- unused categories = null
+
+The result matched the manual calculation exactly.
+
+
+### Automated scoring tests
+
+A dedicated deterministic scoring test was added.
+
+The tests cover:
+
+- required matched
+- required missing
+- preferred matched
+- partial
+- uncertain
+- empty category
+- multiple requirements with expected mathematical score
+
+Result:
+
+`7 / 7 passed`
+
+
+### Frontend integration
+
+The frontend now runs the complete pipeline:
+
+1. User selects a PDF.
+2. User enters a Job Description.
+3. User clicks Analyze Match.
+4. `/api/extract-resume` extracts resume text.
+5. `/api/analyze` creates Resume Profile and Job Profile.
+6. `/api/match` performs semantic comparison and deterministic scoring.
+7. The Match Result is displayed.
+
+Loading phases are:
+
+- `Reading Resume...`
+- `Analyzing Resume and Job...`
+- `Calculating Match...`
+
+
+### Match Result UI
+
+The frontend now displays:
+
+- overall Match Score
+- category breakdown
+- matched requirements
+- partial requirements
+- missing requirements
+- uncertain requirements
+- requirement importance
+- explanation
+- Resume evidence
+
+Empty categories display:
+
+`N/A`
+
+Missing requirements do not display fabricated Resume evidence.
+
+The Day 3 structured profiles remain visible temporarily for development verification.
+
+
+### Paid-request behavior
+
+A successful complete analysis performs:
+
+- one `/api/analyze` LLM call
+- one `/api/match` LLM call
+
+No API calls are triggered by React effects or rerenders.
+
+Duplicate request protection remains active.
+
+If the user clicks Analyze again without changing the PDF or Job Description:
+
+- the existing result remains visible
+- no new paid request is sent
+
+If `/api/analyze` succeeds but `/api/match` fails:
+
+- the structured profiles are retained
+- retrying with unchanged input calls only `/api/match`
+- `/api/analyze` is not repeated unnecessarily
+
+
+### Real resume testing
+
+The matching system was tested using a real German mechanical-engineering resume.
+
+Multiple controlled Job Descriptions were created to test different matching situations.
+
+
+#### High-match engineering JD
+
+Tested requirements involving:
+
+- MATLAB
+- Python
+- SolidWorks
+- LabVIEW
+- laboratory experiments
+- technical data analysis
+- sensor calibration
+- quality testing
+- German proficiency
+
+Expected strong matches were identified correctly.
+
+
+#### Partial-match simulation JD
+
+Tested:
+
+- advanced Ansys
+- multiple years of finite element analysis
+- CAD
+- SolidWorks
+- Python
+- MATLAB
+
+The resume contains only basic Ansys Workbench knowledge, allowing the system to distinguish supported skills from stronger unsupported requirements.
+
+
+#### False-positive / low-match JD
+
+Tested requirements that are not supported by the resume:
+
+- SAP
+- CATIA
+- Siemens NX
+- five years of automotive experience
+- APQP
+- FMEA
+- Six Sigma
+
+The system did not incorrectly convert related engineering experience into full matches.
+
+
+#### German semantic matching
+
+A German Job Description was tested against the German resume.
+
+Examples included:
+
+- Laborversuche
+- technische Messdaten
+- MATLAB
+- Python
+- LabVIEW
+- optische Messtechnik
+- Sensorik und Kalibrierung
+
+Semantic relationships were classified correctly.
+
+
+#### Cross-language semantic matching
+
+An English optical-engineering Job Description was tested against the German resume.
+
+Examples:
+
+German Resume:
+
+`Design und Herstellung mikrodiffraktiver optischer Elemente`
+
+English JD:
+
+`Experience designing optical or micro-optical components`
+
+The system successfully recognized the semantic relationship across languages.
+
+Additional tested concepts included:
+
+- Zemax / ZemaxStudio
+- laboratory experiments
+- optical design
+- Python
+- SolidWorks
+- CAD
+- microfabrication
+
+
+### Manual Day 4 result
+
+All planned Day 4 tests passed:
+
+- obvious matches
+- obvious missing requirements
+- partial requirements
+- German matching
+- English matching
+- cross-language matching
+- false-positive resistance
+- evidence grounding
+- deterministic score calculation
+- empty-category handling
+- duplicate paid-call protection
+
+
+### Validation
+
+- `npm run test:scoring` passed: 7/7
+- `npm run lint` passed
+- TypeScript check passed
+- `npm run build` passed
+- `/api/match` controlled PowerShell test passed
+- full frontend pipeline passed
+- real CV/JD semantic tests passed
+
+
+### What I learned
+
+- Why semantic comparison and scoring should be separate responsibilities.
+- How deterministic scoring makes an AI result explainable.
+- Why the LLM should classify relationships rather than invent percentages.
+- How stable requirement IDs make LLM output easier to validate.
+- How evidence IDs reduce hallucinated resume evidence.
+- Difference between matched, partial, missing, and uncertain.
+- Why partial should not mean merely “somewhat related.”
+- Why multilingual matching benefits from semantic comparison instead of exact keywords.
+- Why related technologies should not automatically count as equivalent.
+- Why empty categories should be N/A instead of 0%.
+- How to manually verify a scoring function mathematically.
+- How automated tests can verify deterministic scoring independently from the LLM.
+- How to reduce repeated paid LLM requests in the frontend.
+
+
+### Day 4 completed
+
+Completed:
+
+- semantic Resume ↔ Job Description matching
+- multilingual semantic comparison
+- matched / partial / missing / uncertain classifications
+- evidence-ID grounding
+- deterministic match score
+- category score breakdowns
+- automated scoring tests
+- frontend Match Result integration
+- real CV/JD testing
+- false-positive testing
+- cross-language testing
+
+Not yet implemented:
+
+- resume improvement suggestions
+- final UI polish
+- production abuse protection
+- rate limiting
+- demo mode
+- deployment
+- final README / portfolio presentation
+
+
+### Next milestone
+
+Day 5:
+
+Match Result
+→ grounded resume improvement suggestions
+→ clearer final result presentation
+→ MVP UI/UX polish

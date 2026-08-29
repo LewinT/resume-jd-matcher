@@ -69,6 +69,64 @@ The LLM should help extract and normalize information.
 
 The final score should not be an unexplained number invented by the model.
 
+## Matching and scoring
+
+Each Job Description requirement is classified as:
+
+- matched
+- partial
+- missing
+- uncertain
+
+The semantic comparison may recognize clear cross-language and terminology equivalents, for example:
+
+- `FEM-Simulation`
+- `finite element analysis`
+
+However, merely related technologies must not automatically count as matches.
+
+For example:
+
+- SolidWorks does not imply CATIA
+- Python does not imply SAP
+- a skill name alone does not prove that a specific responsibility was performed
+
+The scoring rubric is:
+
+Importance weights:
+
+- required = 2
+- preferred = 1
+- unspecified = 1
+
+Match values:
+
+- matched = 1
+- partial = 0.5
+- missing = 0
+- uncertain = 0
+
+For each requirement:
+
+`earnedPoints = importanceWeight × matchValue`
+
+The overall score is:
+
+`total earned points / total possible points × 100`
+
+Category breakdowns use the same formula for:
+
+- skills
+- experience
+- responsibilities
+- education
+- languages
+
+If the Job Description contains no requirements in a category, that category is displayed as N/A rather than 0%.
+
+Resume evidence used for matching must reference evidence already extracted from the Resume Profile. The semantic comparison must not invent new resume evidence.
+
+
 ## Resume integrity
 
 The application must never invent:
@@ -130,89 +188,98 @@ No user account or resume history is required for the MVP.
 
 ## Current architecture
 
-Current Day 3 flow:
+The current MVP flow is:
 
 PDF Resume
-→ server-side PDF extraction
-→ resume text
+→ browser upload
+→ POST /api/extract-resume
+→ server-side PDF validation and in-memory text extraction
+→ resumeText
 
-Resume text + Job Description
-→ server-side LLM structured analysis
+resumeText + Job Description
+→ POST /api/analyze
+→ server-side LLM structured extraction
 → Resume Profile + Job Profile
 
 Resume Profile + Job Profile
-→ planned explainable matching logic
-→ final result
+→ POST /api/match
+→ server-side semantic requirement comparison
+→ deterministic TypeScript scoring
+→ explainable Match Result
+→ frontend display
+
+The LLM is responsible for:
+- structured information extraction
+- multilingual semantic comparison
+- identifying matched, partial, missing, and uncertain relationships
+
+The LLM does not calculate the final match percentage.
+
+Final numerical scoring is calculated by deterministic application code using explicit weighting rules.
+
+Uploaded resume files and extracted profile data are processed only for the active request and are not permanently stored.
+
 
 ## Current implementation status
 
-### Day 1 completed
+Completed:
 
-- homepage UI
-- PDF resume file selection
+- responsive homepage
+- PDF resume selection
 - client-side PDF validation
-- selected filename display
-- Job Description controlled textarea
-- Analyze button validation
-- mock result UI
-- responsive layout
-- lint passed
-- production build passed
-
-### Day 2 completed
-
-- server-side PDF extraction API
+- Job Description input
 - server-side PDF validation
-- in-memory PDF parsing using unpdf
-- file-size protection
-- page-count protection
-- invalid/damaged PDF handling
-- frontend-to-backend PDF upload
-- loading state
-- extraction error state
-- extracted text preview
-- English resume PDF tested successfully
-- German resume PDF tested successfully
-- German Unicode characters tested successfully
-- lint passed
-- production build passed
-
-### Day 3 completed
-
-- server-side LLM integration
+- in-memory PDF text extraction
+- English and German PDF extraction
 - structured Resume Profile extraction
 - structured Job Profile extraction
-- English/German-ready structured schema
-- evidence-backed extraction
+- multilingual-ready LLM analysis
+- evidence-backed structured extraction
 - uncertainty handling
-- frontend end-to-end analysis flow
-- duplicate analysis protection
+- server-side semantic requirement comparison
+- stable Job Description requirement IDs
+- stable Resume evidence IDs
+- matched / partial / missing / uncertain classification
+- deterministic explainable scoring
+- category score breakdown
+- frontend Match Result display
+- duplicate paid-request protection
+- separate extraction / analysis / matching error handling
+- deterministic scoring tests
+- English semantic matching tests
+- German semantic matching tests
+- cross-language semantic matching tests
+- false-positive matching tests
+- real resume testing
 
-### Not yet implemented
+### Not yet implemented:
 
-- semantic matching
-- explainable scoring
-- matched / missing requirement logic
-- final result UI
-- resume suggestions
-- deployment protection
+- resume improvement suggestions
+- final UI/UX polish
+- public-demo abuse protection
+- rate limiting
+- portfolio demo mode
 - deployment
+- final README and project presentation
+
 
 ## Known limitations
 
 - Multi-column PDF layouts may not preserve the original visual reading order during text extraction.
-- Scanned/image-only PDFs are not supported.
-- Extracted text is currently shown mainly for development verification.
+- Education and other relationships in flattened PDF text may sometimes be ambiguous.
+- The AI is instructed to prefer null or uncertainty over guessed associations.
+- Scanned or image-only PDFs are not supported.
+- OCR is out of scope for the MVP.
+- Semantic matching depends on an external LLM and may occasionally classify borderline relationships differently.
+- The current public-facing UI is still a development-oriented result view.
+- Public deployment will require rate limiting and cost-abuse protection because each real AI analysis uses a paid API.
 
-These limitations are acceptable for the current MVP unless they block downstream LLM analysis.
-
-When extracted PDF text contains ambiguous layout or ordering, downstream AI analysis should prefer explicit evidence and avoid inventing uncertain relationships.
 
 ## Next milestone
 
-Day 3 will focus on:
+Day 5 will focus on:
 
-- integrating an LLM
-- converting extracted resume text into a structured resume profile
-- converting the Job Description into structured requirements
-- testing English and German inputs
+- resume improvement suggestions grounded only in existing resume evidence
+- turning the development result view into a clearer final product UI
+- improving how matched, partial, missing, and uncertain requirements are presented
+- deciding which technical/debug information should remain visible in the final MVP
