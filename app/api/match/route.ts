@@ -12,6 +12,7 @@ import {
   matchResultSchema,
   semanticComparisonResponseSchema,
 } from "@/lib/match-schema";
+import type { MatchRequest, RequirementMatch } from "@/lib/match-schema";
 
 export const runtime = "nodejs";
 
@@ -45,6 +46,24 @@ Rules:
 
 function errorResponse(message: string, status: number) {
   return Response.json({ error: message }, { status });
+}
+
+function validatedMatchResponse(
+  requirementMatches: RequirementMatch[],
+  inputLanguage: MatchRequest["jobProfile"]["inputLanguage"],
+) {
+  const matchResult = matchResultSchema.safeParse(
+    buildMatchResult(requirementMatches, inputLanguage),
+  );
+
+  if (!matchResult.success) {
+    return errorResponse(
+      "The matching result could not be validated. Please try again.",
+      502,
+    );
+  }
+
+  return Response.json(matchResult.data);
 }
 
 export async function POST(request: Request) {
@@ -85,7 +104,7 @@ export async function POST(request: Request) {
   const resumeEvidence = buildResumeEvidenceCatalogue(resumeProfile);
 
   if (requirements.length === 0) {
-    return Response.json(buildMatchResult([]));
+    return validatedMatchResponse([], jobProfile.inputLanguage);
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -146,18 +165,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const matchResult = matchResultSchema.safeParse(
-      buildMatchResult(requirementMatches),
-    );
-
-    if (!matchResult.success) {
-      return errorResponse(
-        "The matching result could not be validated. Please try again.",
-        502,
-      );
-    }
-
-    return Response.json(matchResult.data);
+    return validatedMatchResponse(requirementMatches, jobProfile.inputLanguage);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("OpenAI matching request failed:", message);

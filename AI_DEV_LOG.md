@@ -1099,3 +1099,308 @@ Match Result
 → grounded resume improvement suggestions
 → clearer final result presentation
 → MVP UI/UX polish
+
+## Day 5
+
+### Goal
+
+Add safe, evidence-grounded resume improvement suggestions and polish the result UI into a portfolio-ready MVP experience.
+
+The main Day 5 principle was:
+
+Existing resume evidence
+→ may be highlighted or clarified
+
+Missing information
+→ must remain a gap
+
+Unsupported information
+→ must never be added or implied
+
+
+### Suggestion architecture
+
+The suggestion system was implemented as a deterministic layer inside the existing `/api/match` flow.
+
+Current flow:
+
+Resume Profile + Job Profile
+→ semantic comparison
+→ deterministic scoring
+→ deterministic suggestion builder
+→ final Match Result
+
+No third LLM request was added.
+
+A successful complete analysis still uses only:
+
+1. `/api/analyze` — structured Resume/JD extraction
+2. `/api/match` — semantic comparison
+
+Suggestion generation itself has zero additional AI cost.
+
+
+### Suggestion categories
+
+Suggestions are divided into three groups.
+
+#### Supported improvements
+
+Generated only for `matched` or `partial` requirements.
+
+For matched requirements:
+
+- action: increase visibility
+- existing resume evidence may be made easier to find
+- no new facts may be added
+
+For partial requirements:
+
+- action: clarify supported scope
+- existing supported evidence may be highlighted
+- a claim boundary explicitly states what is not supported
+
+Example:
+
+JD:
+`5 years of Python experience`
+
+Resume:
+`Python`
+
+Valid guidance:
+Make the existing Python evidence more visible.
+
+Claim boundary:
+The resume does not establish five years of Python experience.
+
+
+#### Gaps
+
+Generated for `missing` requirements.
+
+A missing requirement:
+
+- cannot become a resume improvement
+- contains no resume evidence
+- must be presented only as a gap
+- must not be added to the resume unless genuinely true
+
+Example:
+
+`SAP is required by the role but is not supported by the current resume.`
+
+
+#### Needs verification
+
+Generated for `uncertain` requirements.
+
+Uncertain items:
+
+- are not treated as supported
+- are not treated as definitely missing
+- are not rewritten
+- must be verified before the resume is changed
+
+
+### Resume integrity safeguards
+
+Suggestion generation is deterministic application code.
+
+The system does not use an LLM to write resume improvements.
+
+Suggestions are based only on:
+
+- validated Match Result requirements
+- existing Resume evidence
+- requirement status
+- Job Description language
+
+The system must not introduce unsupported:
+
+- skills
+- tools
+- employers
+- responsibilities
+- achievements
+- metrics
+- qualifications
+- certifications
+- proficiency levels
+- years of experience
+
+Resume evidence is reused exactly as already validated.
+
+Missing requirements never receive fabricated evidence.
+
+
+### Multilingual suggestions
+
+Suggestion language follows the Job Description language.
+
+Current behavior:
+
+- German JD → German suggestions
+- English JD → English suggestions
+- mixed or unknown language → English fallback
+
+Resume evidence remains in its original language.
+
+
+### Suggestion tests
+
+Added deterministic suggestion tests covering:
+
+- matched → increase visibility
+- partial → clarify supported scope
+- partial requires claim boundary
+- missing → gap only
+- uncertain → needs verification only
+- missing cannot become a supported improvement
+- supported improvements require Resume evidence
+- maximum five supported improvements
+- German templates
+- English templates
+- mixed/unknown English fallback
+
+Result:
+
+`10 / 10 passed`
+
+No OpenAI calls are made during suggestion tests.
+
+
+### Frontend result redesign
+
+The Day 4 development-oriented result page was cleaned up.
+
+The Match Result is now the main output.
+
+The frontend displays:
+
+- Overall Match Score
+- Category breakdown
+- Matched requirements
+- Partial requirements
+- Missing requirements
+- Uncertain requirements
+- Resume Improvements
+- Gaps
+- Needs Verification
+- explanations
+- Resume evidence
+- claim boundaries for partial matches
+
+Internal API field names are not shown directly to the user.
+
+Examples:
+
+`increase_visibility`
+→ presented as user-friendly improvement guidance
+
+`gapsThatMustNotBeFabricated`
+→ presented as Gaps
+
+
+### Technical details
+
+The earlier Day 2 / Day 3 development information no longer dominates the main interface.
+
+Extracted Resume Text, Resume Profile, and Job Profile are kept only as optional technical/debug information and are collapsed by default.
+
+
+### API cost behavior
+
+Day 5 does not increase the number of paid model calls.
+
+Normal successful analysis:
+
+- one `/api/analyze` call
+- one `/api/match` call
+
+Suggestions require no additional model request.
+
+Existing duplicate-request protection remains active.
+
+
+### Manual testing
+
+Day 5 was tested with multiple controlled and real Job Descriptions.
+
+Testing included:
+
+- high-match engineering roles
+- partial Ansys requirements
+- unsupported SAP requirements
+- CATIA
+- Siemens NX
+- automotive requirements
+- German Job Descriptions
+- English Job Descriptions
+- cross-language matching
+- responsibility overmatching cases
+
+The suggestion system correctly kept unsupported requirements as gaps and did not recommend fabricating them.
+
+Partial requirements retained explicit claim boundaries.
+
+
+### Validation
+
+- `npm run test:scoring` passed: 7/7
+- `npm run test:suggestions` passed: 10/10
+- `npm run lint` passed
+- TypeScript check passed
+- `npm run build` passed
+- frontend suggestion display passed manual testing
+- multilingual suggestion behavior passed
+- gap / partial / supported improvement behavior passed
+
+
+### What I learned
+
+- Not every AI feature needs another LLM call.
+- Deterministic logic can provide useful AI-product behavior with zero additional inference cost.
+- Resume suggestions are safer when grounded in already validated evidence.
+- Partial matches need explicit claim boundaries to prevent overstatement.
+- Missing requirements should remain gaps rather than becoming rewrite suggestions.
+- Schema validation guarantees structure but not factual truth, so evidence grounding still matters.
+- Separating matching, scoring, and suggestions makes the system easier to explain and debug.
+- Product-facing UI should hide development details unless the user explicitly wants them.
+
+
+### Day 5 completed
+
+Completed:
+
+- deterministic resume improvement suggestions
+- evidence-grounded improvement guidance
+- claim boundaries for partial matches
+- protected missing-requirement gaps
+- verification flow for uncertain matches
+- German and English suggestion templates
+- suggestion automated tests
+- final Match Result UI integration
+- development/debug information moved out of the main result view
+- no additional paid LLM calls
+
+Not yet implemented:
+
+- rewritten resume bullets
+- rate limiting
+- abuse protection
+- public demo mode
+- production deployment
+- final README / portfolio documentation
+
+
+### Next milestone
+
+Day 6:
+
+- deployment preparation
+- rate limiting
+- API cost protection
+- public demo strategy
+- environment configuration
+- production testing

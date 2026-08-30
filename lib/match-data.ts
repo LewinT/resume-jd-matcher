@@ -1,4 +1,5 @@
 import { calculateMatchScores } from "@/lib/match-scoring";
+import { buildSuggestions } from "@/lib/match-suggestions";
 import type {
   JobRequirement,
   MatchRequest,
@@ -225,6 +226,7 @@ export function resolveSemanticComparisons(
 
 export function buildMatchResult(
   requirementMatches: RequirementMatch[],
+  inputLanguage: MatchRequest["jobProfile"]["inputLanguage"],
 ): MatchResult {
   const scores = calculateMatchScores(requirementMatches);
 
@@ -233,5 +235,6 @@ export function buildMatchResult(
     overallScore: scores.overallScore,
     categories: scores.categories,
     requirements: requirementMatches,
+    suggestions: buildSuggestions(requirementMatches, inputLanguage),
   };
 }

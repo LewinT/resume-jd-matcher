@@ -101,3 +101,26 @@ When modifying workflows that call an LLM:
 - Do not expose API keys to client-side code.
 - Do not log secrets or full resume contents unnecessarily.
 - Public deployment must include reasonable abuse and cost protection.
+
+## Resume suggestion integrity
+
+When implementing resume improvement features:
+
+- Suggestions must be grounded in already validated resume evidence.
+- Never recommend adding a missing skill, qualification, employer, achievement, responsibility, metric, certification, proficiency level, or experience duration unless it is genuinely supported by the resume.
+- `matched` items may be made more visible or clearer.
+- `partial` items may clarify only the supported portion and must preserve the unsupported boundary.
+- `missing` items must remain gaps and must not become resume-editing suggestions.
+- `uncertain` items should be presented for user verification before any resume change is recommended.
+- Prefer deterministic guidance over another LLM call when the recommendation can be derived safely from existing structured results.
+- Do not generate rewritten resume bullets unless the feature explicitly includes safeguards against factual strengthening.
+- Existing evidence text must not be silently translated, altered, or presented as a quotation if it is not the original text.
+
+## AI feature design
+
+Before adding another LLM call:
+
+- Check whether the feature can be implemented deterministically from already validated data.
+- Avoid additional model calls when they add cost without meaningful semantic value.
+- Keep extraction, semantic judgment, numerical scoring, and presentation logic clearly separated.
+- Prefer small pure functions for deterministic business logic so they can be tested without external APIs.
