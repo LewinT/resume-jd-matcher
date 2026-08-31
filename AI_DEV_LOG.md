@@ -1404,3 +1404,392 @@ Day 6:
 - public demo strategy
 - environment configuration
 - production testing
+
+---
+
+## Day 6 — Local deployment preparation
+
+### Scope completed
+
+- Added a compile-time-checked, completely fictional Match Result fixture.
+- Added **Try Example**, which renders that fixture directly without a PDF, Job Description, fetch request, API route, Upstash request, or OpenAI request.
+- Added Upstash Redis distributed limits: 10 PDF extractions per hour per client, one shared 6-per-hour client allowance across both paid routes, and one shared 40-per-day global paid allowance.
+- Replaced raw client addresses with salted HMAC-SHA-256 identifiers before limiter keys are created.
+- Added environment-specific Redis prefixes so Preview and Production counters remain separate.
+- Made paid routes fail closed before OpenAI when limiter configuration or Upstash verification is unavailable.
+- Bounded actual JSON body reads even when `Content-Length` is missing.
+- Added pre-OpenAI requirement and evidence-count caps to matching.
+- Added explicit OpenAI output-token limits and kept `store: false`.
+- Replaced provider-message logging with safe error category, status, code, and request-ID metadata.
+- Added `Cache-Control: no-store` to user-derived API responses.
+- Hid full extracted resume/profile technical details in production while retaining them locally.
+- Added a focused privacy notice and basic low-risk security headers.
+- Added deterministic Day 6 tests with fake limiter dependencies; no real Upstash or OpenAI requests are made by the tests.
+
+### Required server environment
+
+- `OPENAI_API_KEY`
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+- `RATE_LIMIT_IP_SALT`
+
+None of these variables may use the `NEXT_PUBLIC_` prefix.
+
+### Scope deliberately deferred
+
+- Vercel deployment
+- authentication and accounts
+- analytics
+- OCR
+- new AI providers or additional model calls
+- changes to matching, scoring, or suggestion behavior
+
+### Validation
+
+- `npm run test:scoring` passed: 7/7
+- `npm run test:suggestions` passed: 10/10
+- `npm run test:day6` passed, including a full TypeScript check
+- `npm run lint` passed
+- `npm run build` passed with all three API routes built as dynamic server routes
+
+## Day 6
+
+### Goal
+
+Prepare the application for safe public portfolio deployment.
+
+The main Day 6 goals were:
+
+- prevent uncontrolled paid API usage
+- add a zero-cost public demo path
+- add server-side rate limiting
+- improve production privacy and security
+- prepare the application for Vercel deployment
+
+No matching, scoring, or suggestion logic was changed.
+
+
+### Public demo strategy
+
+A hybrid public portfolio strategy was implemented.
+
+The application now supports:
+
+1. Try Example
+2. Real AI analysis
+
+Try Example uses a fully fictional precomputed Match Result.
+
+It:
+
+- requires no PDF
+- requires no Job Description
+- makes no API request
+- makes no OpenAI request
+- makes no Upstash request
+- reuses the existing Match Result UI
+- costs $0 per use
+
+The fictional demo does not use the real developer resume or personal information.
+
+
+### Paid analysis protection
+
+Real AI analysis remains:
+
+PDF
+→ /api/extract-resume
+→ /api/analyze
+→ /api/match
+
+A successful real analysis uses:
+
+- one OpenAI call in `/api/analyze`
+- one OpenAI call in `/api/match`
+
+Server-side distributed rate limiting was added before paid requests.
+
+
+### Upstash rate limiting
+
+Upstash Redis was added using:
+
+- `@upstash/redis`
+- `@upstash/ratelimit`
+
+An in-memory limiter was intentionally not used because serverless instances do not share reliable process memory.
+
+Current limits:
+
+PDF extraction:
+
+- 10 requests per hour per client
+
+Paid AI routes:
+
+- `/api/analyze` and `/api/match` share 6 paid calls per hour per client
+
+Global protection:
+
+- 40 paid OpenAI calls per day across all clients
+
+A normal complete analysis consumes two paid calls.
+
+Therefore, one client can normally perform approximately three complete real analyses per hour.
+
+
+### Shared paid quota
+
+`/api/analyze` and `/api/match` intentionally share the same paid quota.
+
+They do not receive separate independent limits.
+
+This prevents a caller from bypassing the intended limit by alternating between endpoints.
+
+
+### Client privacy
+
+Raw IP addresses are not stored in Redis.
+
+The client address is converted into a pseudonymous identifier using:
+
+HMAC-SHA-256(client address, RATE_LIMIT_IP_SALT)
+
+Redis receives only the resulting hash and expiring counters.
+
+Environment-specific key prefixes are used:
+
+- development
+- preview
+- production
+
+This prevents local testing from consuming production quotas.
+
+
+### Rate-limit failure behavior
+
+Paid routes fail closed.
+
+If Upstash configuration is missing or the limiter cannot be verified:
+
+- the request returns HTTP 503
+- OpenAI is not called
+- the real analysis is temporarily unavailable
+- Try Example remains available
+
+If a quota is exhausted:
+
+- the request returns HTTP 429
+- the user receives a generic message
+- internal quota details are not exposed
+
+
+### Production hardening
+
+Additional production protections were added:
+
+- bounded JSON request reading
+- request-size protection even without Content-Length
+- maximum Match Result complexity
+- OpenAI output-token limit
+- safe generic configuration errors
+- safer provider-error logging
+- Cache-Control: no-store for user-derived API responses
+- basic security headers
+- production hiding of Technical Details
+- privacy notice near real AI analysis
+
+
+### Environment variables
+
+Local development now uses:
+
+- `OPENAI_API_KEY`
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+- `RATE_LIMIT_IP_SALT`
+
+All remain server-side.
+
+None use `NEXT_PUBLIC_*`.
+
+`.env.local` remains ignored by Git.
+
+
+### Automated tests
+
+Added Day 6 deterministic tests for:
+
+- demo-mode behavior
+- allowed paid requests
+- per-client quota
+- shared analyze/match quota
+- global daily quota
+- fail-closed behavior
+- pseudonymous client identifiers
+- environment isolation
+- invalid-request rejection
+- demo fixture type safety
+
+Validation results:
+
+- scoring tests: 7/7 passed
+- suggestion tests: 10/10 passed
+- Day 6 tests: 12/12 passed
+- lint passed
+- TypeScript passed
+- production build passed
+- git diff check passed
+
+
+### Manual Try Example test
+
+Browser DevTools Network testing confirmed:
+
+- clicking Try Example produces the fictional result
+- no `/api/extract-resume` request
+- no `/api/analyze` request
+- no `/api/match` request
+- no Fetch/XHR request was created
+
+This confirmed that the public demo path has zero AI cost.
+
+
+### Manual real-analysis test
+
+A known real resume and previously tested Job Description were used.
+
+Browser Network showed exactly:
+
+- one `/api/extract-resume` request
+- one `/api/analyze` request
+- one `/api/match` request
+
+All returned HTTP 200.
+
+No duplicate requests were observed.
+
+
+### Upstash verification
+
+After one real analysis, the Upstash database showed active read/write commands and rate-limit keys.
+
+Observed key families included:
+
+- `resume-jd-matcher:development:paid-client:...`
+- `resume-jd-matcher:development:paid-global:...`
+- `resume-jd-matcher:development:pdf-extraction:...`
+
+Client identifiers were hexadecimal HMAC hashes.
+
+No raw local or public IP address was stored in the keys.
+
+
+### Fail-closed manual test
+
+The Upstash REST token environment variable was intentionally disabled.
+
+After restarting the application:
+
+- real analysis failed with HTTP 503
+- the UI displayed a generic temporary-unavailability message
+- the paid analysis pipeline did not continue normally
+
+After restoring the environment variable, normal analysis worked again.
+
+This verified the intended fail-closed behavior.
+
+
+### Production privacy test
+
+The application was tested using:
+
+`npm run build`
+`npm start`
+
+In production mode:
+
+- the normal Match Result UI remained available
+- full Technical Details were not shown
+- extracted Resume Text was not exposed through the development debug section
+- Resume Profile and Job Profile debug information were not displayed
+
+This verified development/production UI separation.
+
+
+### Cost protection layers
+
+The application now protects paid AI usage through several layers:
+
+1. frontend duplicate-request protection
+2. server-side input validation
+3. request-size and complexity caps
+4. per-client distributed rate limiting
+5. shared analyze/match paid quota
+6. global daily paid-call ceiling
+7. explicit OpenAI output limit
+8. zero-cost Try Example
+9. provider-side billing limits to be configured for deployment
+
+No single protection is treated as sufficient on its own.
+
+
+### What I learned
+
+- Frontend button protection is not a security boundary.
+- Public AI endpoints must assume users can call APIs directly.
+- Serverless rate limiting requires shared external state.
+- In-memory counters are unreliable across serverless instances.
+- Rate limiting must happen before paid model calls.
+- A global cost ceiling helps protect against attacks using multiple IP addresses.
+- Fail-closed behavior is safer for paid operations than silently bypassing protection.
+- IP addresses can be pseudonymized before storing rate-limit state.
+- A public portfolio demo does not need to spend money if a precomputed example can demonstrate the product.
+- Development debug information should not automatically appear in production.
+- Production privacy and cost controls are part of AI application architecture, not optional polish.
+
+
+### Day 6 completed
+
+Completed:
+
+- zero-cost Try Example
+- fictional typed demo fixture
+- distributed Upstash rate limiting
+- shared paid-call quota
+- global daily paid-call ceiling
+- HMAC client pseudonymization
+- fail-closed paid routes
+- request-size hardening
+- Match complexity limits
+- OpenAI output-token cap
+- safer production logging
+- no-store API responses
+- privacy notice
+- basic security headers
+- production hiding of debug details
+- Day 6 automated tests
+- local real-analysis limiter verification
+- manual fail-closed verification
+- production-mode privacy verification
+
+Not yet completed:
+
+- Vercel Preview deployment
+- Preview environment configuration
+- production environment configuration
+- production OpenAI budget limit
+- final public deployment
+- final README / portfolio polish
+
+
+### Next milestone
+
+Day 7:
+
+- deploy to Vercel Preview
+- configure production secrets
+- perform production-like smoke tests
+- deploy public production version
+- finalize README
+- prepare GitHub and resume project description

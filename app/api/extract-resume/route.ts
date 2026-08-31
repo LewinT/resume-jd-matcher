@@ -1,5 +1,7 @@
 import { extractText, getDocumentProxy } from "unpdf";
 
+import { enforceExtractionRateLimit } from "@/lib/rate-limit";
+
 export const runtime = "nodejs";
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
@@ -8,7 +10,10 @@ const MAX_IMAGE_SIZE = 16_777_216;
 const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d]; // %PDF-
 
 function errorResponse(message: string, status: number) {
-  return Response.json({ error: message }, { status });
+  return Response.json(
+    { error: message },
+    { status, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 function hasPdfSignature(data: Uint8Array) {
@@ -32,6 +37,12 @@ export async function POST(request: Request) {
 
   if (!contentType.startsWith("multipart/form-data")) {
     return errorResponse("Please send the resume as multipart form data.", 415);
+  }
+
+  const rateLimitResponse = await enforceExtractionRateLimit(request);
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   let formData: FormData;
@@ -89,7 +100,10 @@ export async function POST(request: Request) {
       );
     }
 
-    return Response.json({ text, pages: result.totalPages });
+    return Response.json(
+      { text, pages: result.totalPages },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch {
     return errorResponse(
       "The PDF could not be read. It may be damaged, password-protected, or unsupported.",

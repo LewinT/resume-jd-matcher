@@ -3,6 +3,7 @@
 import { useRef, useState, type ChangeEvent } from "react";
 
 import type { AnalysisResponse } from "@/lib/analysis-schema";
+import { getDemoMatchResult } from "@/lib/demo-match-result";
 import type { MatchResult, MatchStatus } from "@/lib/match-schema";
 
 type ExtractionResponse = {
@@ -700,6 +701,20 @@ export default function Home() {
     setFileError("");
   }
 
+  function handleTryExample() {
+    stopActiveRequest();
+    setFileError("");
+    setExtractionError("");
+    setAnalysisError("");
+    setMatchError("");
+    setExtractedText("");
+    setPageCount(null);
+    setAnalysisResult(null);
+    setMatchResult(getDemoMatchResult());
+    lastAnalyzedInputs.current = null;
+    lastSuccessfulInputs.current = null;
+  }
+
   async function handleAnalyze() {
     if (
       !canAnalyze ||
@@ -949,20 +964,34 @@ export default function Home() {
             />
           </section>
 
-          <button
-            type="button"
-            disabled={!canAnalyze || isRunning}
-            onClick={handleAnalyze}
-            className="w-full rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:hover:bg-slate-300"
-          >
-            {requestPhase === "extracting"
-              ? "Reading Resume..."
-              : requestPhase === "analyzing"
-                ? "Analyzing Resume and Job..."
-                : requestPhase === "matching"
-                  ? "Calculating Match..."
-                  : "Analyze Match"}
-          </button>
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <button
+              type="button"
+              disabled={!canAnalyze || isRunning}
+              onClick={handleAnalyze}
+              className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:hover:bg-slate-300"
+            >
+              {requestPhase === "extracting"
+                ? "Reading Resume..."
+                : requestPhase === "analyzing"
+                  ? "Analyzing Resume and Job..."
+                  : requestPhase === "matching"
+                    ? "Calculating Match..."
+                    : "Analyze Match"}
+            </button>
+            <button
+              type="button"
+              onClick={handleTryExample}
+              className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 font-semibold text-blue-800 transition-colors hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            >
+              Try Example
+            </button>
+          </div>
+
+          <p className="text-center text-xs leading-5 text-slate-500">
+            Real analysis sends your resume and job description content to
+            OpenAI. This application does not permanently store your resume.
+          </p>
 
           {isRunning && (
             <p
@@ -1010,7 +1039,8 @@ export default function Home() {
 
         {matchResult && <MatchResultView result={matchResult} />}
 
-        {(analysisResult || (extractedText && pageCount !== null)) && (
+        {process.env.NODE_ENV !== "production" &&
+          (analysisResult || (extractedText && pageCount !== null)) && (
           <details className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <summary className="cursor-pointer px-5 py-4 font-semibold text-slate-800 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 sm:px-6">
               Technical Details
@@ -1145,7 +1175,7 @@ export default function Home() {
               )}
             </div>
           </details>
-        )}
+          )}
       </div>
     </main>
   );

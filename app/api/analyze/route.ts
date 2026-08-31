@@ -2,6 +2,8 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 
 import { analysisResponseSchema } from "@/lib/analysis-schema";
+import { readBoundedJson } from "@/lib/bounded-json";
+import { enforcePaidRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -10,6 +12,7 @@ const MIN_MEANINGFUL_CHARACTERS = 20;
 const MAX_RESUME_CHARACTERS = 100_000;
 const MAX_JOB_DESCRIPTION_CHARACTERS = 50_000;
 const MAX_REQUEST_BYTES = 200_000;
+const MAX_OUTPUT_TOKENS = 12_000;
 
 const SYSTEM_PROMPT = `You extract factual, structured information from a resume and a Job Description.
 
@@ -41,7 +44,10 @@ type AnalyzeRequest = {
 };
 
 function errorResponse(message: string, status: number) {
-  return Response.json({ error: message }, { status });
+  return Response.json(
+    { error: message },
+    { status, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 function hasMeaningfulText(value: string) {
@@ -55,19 +61,17 @@ export async function POST(request: Request) {
     return errorResponse("Please send the resume and Job Description as JSON.", 415);
   }
 
-  const contentLength = Number(request.headers.get("content-length"));
+  const boundedBody = await readBoundedJson(request, MAX_REQUEST_BYTES);
 
-  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+  if (!boundedBody.ok && boundedBody.reason === "too_large") {
     return errorResponse("The analysis request is too large.", 413);
   }
 
-  let body: unknown;
-
-  try {
-    body = await request.json();
-  } catch {
+  if (!boundedBody.ok) {
     return errorResponse("The request body is not valid JSON.", 400);
   }
+
+  const body = boundedBody.value;
 
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     return errorResponse("The request body must be a JSON object.", 400);
@@ -118,9 +122,15 @@ export async function POST(request: Request) {
 
   if (!apiKey) {
     return errorResponse(
-      "The analysis service is not configured. Please add the server API key.",
+      "Real analysis is temporarily unavailable. Please try again later or use Try Example.",
       503,
     );
+  }
+
+  const rateLimitResponse = await enforcePaidRateLimit(request);
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const openai = new OpenAI({ apiKey });
@@ -129,6 +139,7 @@ export async function POST(request: Request) {
     const response = await openai.responses.parse({
       model: MODEL,
       store: false,
+      max_output_tokens: MAX_OUTPUT_TOKENS,
       input: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -152,10 +163,20 @@ export async function POST(request: Request) {
       );
     }
 
-    return Response.json(parsedResult.data);
+    return Response.json(parsedResult.data, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("OpenAI analysis request failed:", message);
+    console.error("OpenAI analysis request failed.", {
+      category: error instanceof Error ? error.name : "UnknownError",
+      ...(error instanceof OpenAI.APIError
+        ? {
+            status: error.status,
+            code: error.code,
+            requestId: error.requestID,
+          }
+        : {}),
+    });
 
     return errorResponse(
       "The resume analysis could not be completed. Please try again.",

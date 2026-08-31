@@ -124,3 +124,30 @@ Before adding another LLM call:
 - Avoid additional model calls when they add cost without meaningful semantic value.
 - Keep extraction, semantic judgment, numerical scoring, and presentation logic clearly separated.
 - Prefer small pure functions for deterministic business logic so they can be tested without external APIs.
+
+## Public AI endpoint protection
+
+When modifying public endpoints that can trigger paid AI work:
+
+- Never rely only on frontend controls for abuse protection.
+- Assume API routes can be called directly.
+- Apply server-side validation and rate limiting before paid model calls.
+- Paid routes should fail closed if the authoritative rate limiter cannot be verified.
+- Avoid independent quotas that allow callers to bypass a shared paid-work limit by switching endpoints.
+- Keep a global cost ceiling in addition to per-client limits when public anonymous access is allowed.
+- Do not replace distributed serverless rate limiting with an in-memory Map for production protection.
+- Preserve duplicate-request protections where intermediate paid results can be reused safely.
+- Prefer a zero-cost demo path for portfolio visitors when practical.
+
+## Production privacy and secrets
+
+When preparing production behavior:
+
+- Never expose `OPENAI_API_KEY`, Upstash tokens, salts, or other server secrets to client code.
+- Never prefix server secrets with `NEXT_PUBLIC_`.
+- Do not log full resumes, Job Descriptions, structured candidate profiles, or provider response bodies unnecessarily.
+- Prefer generic client-facing errors for provider/configuration failures.
+- Add `Cache-Control: no-store` to responses containing user-derived resume or analysis information.
+- Development-only debug information containing resume text must not be exposed by default in production.
+- If client identifiers are stored for abuse prevention, prefer pseudonymous identifiers rather than raw IP addresses.
+- Do not make stronger external-provider retention/privacy claims than the implementation can guarantee.

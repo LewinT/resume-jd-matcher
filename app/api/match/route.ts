@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 
+import { readBoundedJson } from "@/lib/bounded-json";
 import {
   buildMatchResult,
   buildResumeEvidenceCatalogue,
@@ -13,11 +14,15 @@ import {
   semanticComparisonResponseSchema,
 } from "@/lib/match-schema";
 import type { MatchRequest, RequirementMatch } from "@/lib/match-schema";
+import { enforcePaidRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const MODEL = "gpt-5.4-mini";
 const MAX_REQUEST_BYTES = 500_000;
+const MAX_REQUIREMENTS = 100;
+const MAX_RESUME_EVIDENCE_ITEMS = 300;
+const MAX_OUTPUT_TOKENS = 12_000;
 
 const SYSTEM_PROMPT = `You compare structured Job Description requirements with a structured catalogue of resume evidence.
 
@@ -45,7 +50,10 @@ Rules:
 - Do not calculate or return percentages, scores, numeric confidence, suggestions, new evidence, or new requirements.`;
 
 function errorResponse(message: string, status: number) {
-  return Response.json({ error: message }, { status });
+  return Response.json(
+    { error: message },
+    { status, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 function validatedMatchResponse(
@@ -63,7 +71,9 @@ function validatedMatchResponse(
     );
   }
 
-  return Response.json(matchResult.data);
+  return Response.json(matchResult.data, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }
 
 export async function POST(request: Request) {
@@ -76,21 +86,17 @@ export async function POST(request: Request) {
     );
   }
 
-  const contentLength = Number(request.headers.get("content-length"));
+  const boundedBody = await readBoundedJson(request, MAX_REQUEST_BYTES);
 
-  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+  if (!boundedBody.ok && boundedBody.reason === "too_large") {
     return errorResponse("The matching request is too large.", 413);
   }
 
-  let body: unknown;
-
-  try {
-    body = await request.json();
-  } catch {
+  if (!boundedBody.ok) {
     return errorResponse("The request body is not valid JSON.", 400);
   }
 
-  const parsedRequest = matchRequestSchema.safeParse(body);
+  const parsedRequest = matchRequestSchema.safeParse(boundedBody.value);
 
   if (!parsedRequest.success) {
     return errorResponse(
@@ -103,6 +109,16 @@ export async function POST(request: Request) {
   const requirements = flattenJobProfile(jobProfile);
   const resumeEvidence = buildResumeEvidenceCatalogue(resumeProfile);
 
+  if (
+    requirements.length > MAX_REQUIREMENTS ||
+    resumeEvidence.length > MAX_RESUME_EVIDENCE_ITEMS
+  ) {
+    return errorResponse(
+      "The matching request contains too many requirements or resume evidence items.",
+      413,
+    );
+  }
+
   if (requirements.length === 0) {
     return validatedMatchResponse([], jobProfile.inputLanguage);
   }
@@ -111,9 +127,15 @@ export async function POST(request: Request) {
 
   if (!apiKey) {
     return errorResponse(
-      "The matching service is not configured. Please add the server API key.",
+      "Real analysis is temporarily unavailable. Please try again later or use Try Example.",
       503,
     );
+  }
+
+  const rateLimitResponse = await enforcePaidRateLimit(request);
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const openai = new OpenAI({ apiKey });
@@ -122,6 +144,7 @@ export async function POST(request: Request) {
     const response = await openai.responses.parse({
       model: MODEL,
       store: false,
+      max_output_tokens: MAX_OUTPUT_TOKENS,
       input: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -167,8 +190,16 @@ export async function POST(request: Request) {
 
     return validatedMatchResponse(requirementMatches, jobProfile.inputLanguage);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("OpenAI matching request failed:", message);
+    console.error("OpenAI matching request failed.", {
+      category: error instanceof Error ? error.name : "UnknownError",
+      ...(error instanceof OpenAI.APIError
+        ? {
+            status: error.status,
+            code: error.code,
+            requestId: error.requestID,
+          }
+        : {}),
+    });
 
     return errorResponse(
       "The resume matching could not be completed. Please try again.",
