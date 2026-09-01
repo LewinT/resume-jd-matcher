@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const MAX_PAGES = 50;
 const MAX_IMAGE_SIZE = 16_777_216;
+const MAX_EXTRACTED_TEXT_CHARACTERS = 100_000;
 const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d]; // %PDF-
 
 function errorResponse(message: string, status: number) {
@@ -91,6 +92,14 @@ export async function POST(request: Request) {
 
     const result = await extractText(pdf, { mergePages: true });
     const text = result.text.trim();
+
+    if (text.length > MAX_EXTRACTED_TEXT_CHARACTERS) {
+      return errorResponse(
+        "The extracted resume text is too large to analyze.",
+        413,
+      );
+    }
+
     const meaningfulCharacters = text.replace(/\s/g, "");
 
     if (meaningfulCharacters.length < 20) {

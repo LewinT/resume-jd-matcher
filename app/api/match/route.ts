@@ -23,6 +23,7 @@ const MAX_REQUEST_BYTES = 500_000;
 const MAX_REQUIREMENTS = 100;
 const MAX_RESUME_EVIDENCE_ITEMS = 300;
 const MAX_OUTPUT_TOKENS = 12_000;
+const OPENAI_TIMEOUT_MS = 60_000;
 
 const SYSTEM_PROMPT = `You compare structured Job Description requirements with a structured catalogue of resume evidence.
 
@@ -138,7 +139,11 @@ export async function POST(request: Request) {
     return rateLimitResponse;
   }
 
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({
+    apiKey,
+    maxRetries: 0,
+    timeout: OPENAI_TIMEOUT_MS,
+  });
 
   try {
     const response = await openai.responses.parse({

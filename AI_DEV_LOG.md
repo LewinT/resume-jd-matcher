@@ -1793,3 +1793,30 @@ Day 7:
 - deploy public production version
 - finalize README
 - prepare GitHub and resume project description
+
+---
+
+## Day 7 — Final pre-deployment hardening
+
+### Code changes
+
+- Added a 100,000-character limit to successfully extracted resume text before `/api/extract-resume` returns it to the browser.
+- Oversized extracted text now returns a generic HTTP 413 response without including the extracted content.
+- Configured both OpenAI clients with `maxRetries: 0` and a 60-second request timeout.
+- A paid limiter decision now permits at most one OpenAI SDK request attempt; no application-level retry was added.
+- Existing OpenAI storage, output-token, validation, logging, and generic client-error behavior remains unchanged.
+- Extended the deterministic Day 6 protection tests for the extraction limit and OpenAI client configuration.
+
+### Remaining deployment configuration
+
+Public production deployment should use a dedicated OpenAI project and API key. A deliberately low provider-side enforced spend limit must be configured before the public production deployment is made available.
+
+This provider control is a deployment/configuration task rather than application code. It is not configured yet.
+
+### Validation
+
+- `npm run test:scoring` passed: 7/7
+- `npm run test:suggestions` passed: 10/10
+- `npm run test:day6` passed: 14/14, including the TypeScript check
+- `npm run lint` passed
+- `npm run build` passed with all three API routes built as dynamic server routes

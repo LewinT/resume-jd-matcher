@@ -274,12 +274,14 @@ Completed:
 - automated suggestion tests
 - automated Day 6 protection tests
 - local production-mode validation
+- 100,000-character extracted resume-text response limit
+- single-attempt OpenAI requests with a 60-second SDK timeout
 
 Not yet completed:
 
 - Vercel Preview deployment
 - production environment variables
-- provider-side production spend limit
+- dedicated deployment OpenAI project/key and provider-side enforced spend limit
 - final public deployment
 - final README and portfolio presentation
 
@@ -310,6 +312,7 @@ Current protections include:
 - shared `/api/analyze` and `/api/match` paid quota
 - global daily paid-call ceiling
 - OpenAI output-token limits
+- disabled OpenAI SDK retries and a 60-second request timeout
 - generic fail-closed behavior if the rate limiter is unavailable
 
 Current rate limits:
@@ -322,4 +325,4 @@ A normal complete real analysis consumes two paid calls.
 
 Client identifiers are pseudonymized before being stored in the rate-limit database.
 
-Production deployment should also use a dedicated OpenAI project with a deliberately low spending limit.
+Public production deployment should use a dedicated OpenAI project and API key with a deliberately low provider-side enforced spend limit. This is a deployment configuration task, not application code, and it is not configured yet.

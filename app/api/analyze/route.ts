@@ -13,6 +13,7 @@ const MAX_RESUME_CHARACTERS = 100_000;
 const MAX_JOB_DESCRIPTION_CHARACTERS = 50_000;
 const MAX_REQUEST_BYTES = 200_000;
 const MAX_OUTPUT_TOKENS = 12_000;
+const OPENAI_TIMEOUT_MS = 60_000;
 
 const SYSTEM_PROMPT = `You extract factual, structured information from a resume and a Job Description.
 
@@ -133,7 +134,11 @@ export async function POST(request: Request) {
     return rateLimitResponse;
   }
 
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({
+    apiKey,
+    maxRetries: 0,
+    timeout: OPENAI_TIMEOUT_MS,
+  });
 
   try {
     const response = await openai.responses.parse({
