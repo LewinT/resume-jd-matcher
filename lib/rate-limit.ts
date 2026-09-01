@@ -6,6 +6,7 @@ import { Redis } from "@upstash/redis";
 import {
   createRateLimitService,
   environmentKeyPrefix,
+  resolveRateLimitEnvironment,
   type RateLimitDecision,
   type RateLimitService,
 } from "./rate-limit-core";
@@ -40,8 +41,11 @@ function createUpstashRateLimitService() {
   }
 
   const redis = new Redis({ url, token });
-  const environment =
-    process.env.VERCEL_ENV || process.env.NODE_ENV || "development";
+  const environment = resolveRateLimitEnvironment({
+    vercelEnvironment: process.env.VERCEL_ENV,
+    vercelTargetEnvironment: process.env.VERCEL_TARGET_ENV,
+    isVercel: process.env.VERCEL === "1",
+  });
   const prefix = environmentKeyPrefix(environment);
 
   return createRateLimitService({

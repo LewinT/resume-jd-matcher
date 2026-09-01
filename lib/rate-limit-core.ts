@@ -33,6 +33,31 @@ type RateLimitServiceDependencies = {
 
 const GLOBAL_PAID_IDENTIFIER = "all-paid-calls";
 
+type RateLimitEnvironmentOptions = {
+  vercelEnvironment?: string;
+  vercelTargetEnvironment?: string;
+  isVercel: boolean;
+};
+
+export function resolveRateLimitEnvironment({
+  vercelEnvironment,
+  vercelTargetEnvironment,
+  isVercel,
+}: RateLimitEnvironmentOptions) {
+  const environment =
+    vercelEnvironment?.trim() || vercelTargetEnvironment?.trim();
+
+  if (environment) {
+    return environment;
+  }
+
+  if (isVercel) {
+    throw new Error("Vercel deployment environment is unavailable.");
+  }
+
+  return "development";
+}
+
 export function environmentKeyPrefix(environment: string) {
   const safeEnvironment = environment
     .trim()
