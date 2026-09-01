@@ -1,1822 +1,1827 @@
 # AI Development Log
 
-## Day 1
+## Project
 
-### Goal
+AI Resume ↔ Job Description Matcher
 
-Build a frontend-only prototype for the Resume ↔ JD Matcher.
+## Goal
 
-No PDF parsing, AI API, database, authentication, OCR, or real scoring.
+Build a one-week portfolio MVP that compares a PDF resume with a Job Description using AI semantic reasoning while keeping scoring, evidence integrity, cost protection, and important product rules deterministic and testable.
 
-### What was implemented
+---
 
-- Replaced the default Next.js starter page.
-- Added PDF resume file selection.
-- Added basic client-side PDF validation.
-- Added selected filename display.
-- Added Job Description textarea using React state.
-- Added Analyze button enabled only when:
-  - a valid PDF is selected
-  - Job Description contains non-whitespace text
-- Added mock analysis results.
-- Added automatic result reset when inputs change.
+# Day 1 — Frontend Prototype
 
-### Manual tests performed
+## Goal
 
-- Valid `.pdf` accepted.
-- `.jpg` rejected.
-- Error cleared after selecting a valid PDF.
-- Refresh clears temporary state.
-- Analyze button disabled with no PDF.
-- Analyze button disabled with no Job Description.
-- Analyze button disabled when Job Description contains whitespace only.
-- Analyze button enabled when both inputs are valid.
-- Mock result appears correctly after clicking Analyze.
+Build the initial user flow before adding real backend AI behavior.
 
-### AI workflow
+## Implemented
 
-#### ChatGPT
-Used for:
-- planning Day 1 scope
-- explaining Git
-- explaining React state and client components
-- evaluating Gemini review feedback
-- keeping implementation scope small
+Created a Next.js frontend with:
 
-#### Codex
-Used for:
-- repository inspection
-- updating AGENTS.md
-- creating PROJECT_BRIEF.md
-- implementing the UI
-- adding React state
-- adding PDF validation
-- adding button validation
-- adding mock results
-- validating Gemini feedback
-- running lint
+- PDF resume selector
+- PDF filename display
+- Job Description textarea
+- controlled form state
+- disabled/enabled Analyze button
+- loading state
+- mock Match Result
+- responsive Tailwind layout
+- basic metadata
 
-#### Gemini
-Used as an independent reviewer.
+The initial Match Result used a mock score to prove the user flow before backend implementation.
 
-Gemini identified that checking only:
+## Client-Side PDF Validation
 
-`file.type === "application/pdf"`
+The frontend accepts a file when:
 
-could reject valid PDFs when the browser reports an empty MIME type.
+- MIME indicates PDF, or
+- the filename ends in `.pdf`
 
-Codex independently verified the issue and changed validation so that a file is accepted when:
-- MIME type is `application/pdf`
-OR
-- filename ends in `.pdf` case-insensitively
+This provides reasonable browser-side usability while leaving authoritative validation to the server.
 
-### Validation
+## Result Reset Behavior
 
-- `npm run lint` passed
-- `npm run build` passed
-- production build completed successfully
+Changing either:
 
-### Git
+- selected PDF, or
+- Job Description
 
-Initialized Git repository.
+clears the previous result.
 
-Created first commit:
+This prevents stale analysis from remaining visible after the inputs change.
 
-`feat: complete Day 1 resume matcher prototype`
+## Validation
 
-Pushed repository to GitHub.
+Completed:
 
-### What I learned
+- manual UI test
+- responsive layout check
+- lint
+- production build
 
-- Codex can directly modify the same local repository opened in VS Code.
-- React state is temporary page memory.
-- Selecting a file is different from reading or uploading it.
-- Client-side PDF validation is only an initial check.
-- MIME type alone may not be reliable.
-- Mock data is useful for validating UI before backend logic exists.
-- `git commit` creates a local project snapshot.
-- `git push` uploads commits to GitHub.
+## What I Learned
 
-### Problems / surprises
+- Build the user flow before adding expensive backend behavior.
+- Frontend validation is useful for UX but is not a security boundary.
+- Mock results make it easier to iterate quickly on product structure.
 
-- Git had not been initialized automatically.
-- `git add .` produced LF/CRLF warnings on Windows.
-- Gemini initially took several minutes because it inspected too much of the repository.
+---
 
-### Open questions
+# Day 2 — Server-Side PDF Extraction
 
-- How PDF text extraction will work.
-- Whether PDF parsing should happen client-side or server-side.
-- How multilingual semantic matching will be implemented.
-- How the final match score should be calculated.
+## Goal
 
-## Day 2
+Replace the frontend mock with real resume text extraction.
 
-### Goal
+## Library Decision
 
-Replace the mock PDF behavior with real server-side PDF text extraction.
+Selected:
 
-No LLM analysis yet.
+```text
+unpdf
+```
 
-### Architecture decision
+for server-side PDF extraction.
 
-Compared two approaches:
+The MVP intentionally avoids OCR.
 
-1. client-side PDF parsing
-2. server-side PDF parsing
+## Endpoint
 
-Chose server-side parsing because:
-- it fits future LLM integration better
-- PDF parsing stays out of the browser bundle
-- validation can be centralized on the server
-- uploaded files can be processed in memory
-- future API credentials can remain server-side
+Implemented:
 
-### PDF library decision
+```text
+POST /api/extract-resume
+```
 
-Compared:
-- unpdf
-- pdf-parse
-- pdfjs-dist
+using the Node.js runtime.
 
-Selected `unpdf` because:
-- simple high-level text extraction API
-- good serverless compatibility
-- fewer worker/bundling concerns
-- suitable for a small Next.js/Vercel MVP
+The route receives multipart form data containing:
 
-### What was implemented
+```text
+file
+```
 
-Created:
+## Server Validation
 
-`POST /api/extract-resume`
+Added server-side protection for:
 
-The endpoint:
-- accepts a PDF using FormData
-- validates the uploaded file
-- rejects files larger than 4 MB
-- verifies the PDF signature
-- limits PDFs to 50 pages
-- parses the PDF entirely in memory
-- extracts merged plain text
-- rejects unreadable or empty PDFs
-- returns extracted text and page count as JSON
+- missing file
+- PDF metadata / filename
+- empty files
+- maximum 4 MB upload size
+- `%PDF-` file signature
+- maximum 50 pages
+- damaged PDF
+- password-protected PDF
+- unsupported PDF
+- insufficient meaningful text
+- image-only/scanned PDF
+- resource cleanup
 
-Frontend now:
-- uploads the selected PDF to the API
-- shows a loading state
-- handles extraction errors
-- displays the extracted resume text for development verification
+PDF processing remains in memory.
 
-### Manual tests
+## Successful Result
 
-Successfully tested:
-- normal English text-based resume PDF
-- normal German text-based resume PDF
-- German Unicode characters such as ä, ö, ü, ß
-- image upload rejection
-- invalid/fake PDF rejection
-- oversized file rejection
-- extraction error handling
+Successful extraction returns:
 
-### Known limitation
+```json
+{
+  "text": "...",
+  "pages": 1
+}
+```
 
-Multi-column PDF layouts are not reconstructed correctly.
+## Real Resume Testing
 
-Text extraction may return sections in a different order from the visual PDF layout.
+Tested with real English/German text-based resume content.
 
-Example:
+Unicode extraction worked.
 
-A visually separated left/right column may be flattened into one text stream.
+## Multi-Column Limitation
+
+Observed that PDF parser text order does not necessarily preserve the visual association of information in multi-column resumes.
 
 Decision:
-Do not solve layout reconstruction in the one-week MVP.
 
-The extracted semantic content is currently good enough for LLM analysis.
+Do not build layout reconstruction during the one-week MVP.
 
-### What I learned
+Instead, future structured analysis must prefer uncertainty over assigning information to the wrong education or experience entry.
 
-- Difference between client-side and server-side processing.
-- What a Next.js API Route Handler does.
-- What FormData is.
-- How fetch() sends a file from the browser to the server.
-- Difference between selecting, uploading, parsing, and storing a file.
-- Why server-side validation is still needed even when the browser already validates a file.
-- What in-memory processing means.
-- Why scanned PDFs require OCR.
-- Why PDF visual layout and extracted text order can differ.
+## Frontend Integration
 
-### AI workflow
+The frontend now calls:
 
-#### ChatGPT
+```text
+/api/extract-resume
+```
 
-Used for:
-- Day 2 architecture planning
-- evaluating server-side vs client-side parsing
-- interpreting PDF extraction quality
-- debugging PowerShell curl syntax
-- deciding whether multi-column layout reconstruction was necessary for the MVP
+and displays:
 
-#### Codex
+- loading state
+- extraction errors
+- development debug information
 
-Used for:
-- comparing PDF parsing libraries
-- implementing the extraction API
-- adding unpdf
-- connecting the frontend to the API
-- implementing loading/error states
-- running lint/build
+## What I Learned
 
-#### Gemini
+The request flow became:
 
-Used for:
-- independent review of Day 2 implementation
+```text
+Browser
+→ FormData
+→ fetch
+→ Next.js API route
+→ unpdf
+→ JSON
+→ React state
+```
 
-### Validation
+This was the first full frontend/backend data path in the project.
 
-- `npm run lint` passed
-- `npm run build` passed
-- real English resume extraction passed
-- real German resume extraction passed
+---
 
-### Open questions for Day 3
+# Day 3 — Structured Resume and Job Analysis
 
-- Which LLM/API should perform structured extraction?
-- What JSON schema should represent a resume?
-- What JSON schema should represent a Job Description?
-- How should multilingual semantic matching work?
-- How should uncertainty and ambiguous PDF reading order be handled?
-- How should the final match score be calculated?
+## Goal
 
-## Day 3
+Turn unstructured Resume Text and Job Description text into validated structured profiles.
 
-### Goal
+## OpenAI Integration
 
-Integrate a real LLM into the application and convert:
-- extracted resume text
-- Job Description text
+Added server-side OpenAI API usage.
 
-into structured JSON for later explainable matching.
+The API key remains server-side through:
 
-Day 3 intentionally does not include final match scoring or resume rewriting.
+```text
+OPENAI_API_KEY
+```
 
-### Architecture decision
+No API key is exposed through `NEXT_PUBLIC_*`.
 
-The Day 3 flow is:
+## Endpoint
 
-PDF Resume
-→ /api/extract-resume
-→ extracted resume text
+Implemented:
 
-Resume text + Job Description
-→ /api/analyze
-→ OpenAI API
-→ structured JSON
-→ frontend display
+```text
+POST /api/analyze
+```
 
-The LLM is used for structured extraction and normalization only.
+Input:
 
-Final scoring is deferred to Day 4.
+```json
+{
+  "resumeText": "...",
+  "jobDescription": "..."
+}
+```
 
-### Structured output design
+## Structured Outputs
 
-Implemented two main objects:
+Used:
 
-- resumeProfile
-- jobProfile
+- official OpenAI Node SDK
+- Zod
+- provider-native structured outputs
+- `store: false`
 
-Resume Profile contains:
-- inputLanguage
+The model used for the MVP is configured in server code.
+
+## Input Limits
+
+Added meaningful-input validation.
+
+Current effective limits include:
+
+```text
+Resume Text
+≤ 100,000 characters
+
+Job Description
+≤ 50,000 characters
+```
+
+## Resume Profile
+
+Structured fields include:
+
+- input language
 - skills
+- stated skill level
+- stated experience years
+- evidence
 - experience
 - education
 - languages
 - uncertainties
 
-Job Profile contains:
-- inputLanguage
-- jobTitle
+## Job Profile
+
+Structured fields include:
+
+- input language
+- job title
 - skills
-- experienceRequirements
+- required / preferred / unspecified importance
+- experience requirements
 - responsibilities
-- educationRequirements
-- languageRequirements
+- education requirements
+- language requirements
 - uncertainties
 
-Important design rules:
-- Resume data must come only from resume text.
-- Job Profile data must come only from the Job Description.
-- The LLM must not use JD information to fill missing resume information.
-- Unsupported information should not be invented.
-- Ambiguous data should use null, empty arrays, or uncertainties.
-- Evidence excerpts should remain in the original input language.
-- Job requirements use required, preferred, or unspecified importance.
-- No match score is generated by the LLM.
+## Source Separation
 
-### LLM integration
+A critical rule was introduced:
 
-Created:
+```text
+Resume Profile
+→ Resume only
 
-`POST /api/analyze`
+Job Profile
+→ Job Description only
+```
 
-The endpoint:
-- accepts resumeText and jobDescription as JSON
-- validates both inputs
-- applies input size limits
-- calls OpenAI server-side
-- uses provider-native structured output
-- validates the model result again with Zod
-- returns structured resumeProfile and jobProfile JSON
-- does not expose the API key to the frontend
-- does not store resume text
-- does not write resume data to disk
-- does not add a database
+The model must not use Job Description information to enrich the resume.
 
-The API key is stored locally in:
+The model must not use resume information to weaken or change Job Description requirements.
 
-`.env.local`
+## Hallucination Rule
 
-using:
+When information is ambiguous:
 
-`OPENAI_API_KEY`
+```text
+null
+[]
+uncertain
+```
 
-The file is ignored by Git.
+is preferred over guessing.
 
-### First real API test
+## API Billing Lesson
 
-The first live request initially failed with:
+Discovered that:
 
-`429 You exceeded your current quota`
+```text
+ChatGPT subscription
+≠
+OpenAI API billing
+```
 
-The cause was not the application code.
+The initial OpenAI API request returned a quota-related error because API credits were not configured.
 
-The API key was valid, but the OpenAI API account had no available API credit.
+A small prepaid API balance was added.
 
-After adding prepaid API credit, the same request succeeded.
+Automatic recharge remained disabled.
 
-This helped clarify the difference between:
-- ChatGPT subscription access
-- OpenAI API billing
-- API keys
-- model usage cost
+## Controlled Test
 
-### PowerShell backend testing
+Used a controlled resume / Job Description combination including:
 
-Before connecting the frontend, `/api/analyze` was tested directly with controlled sample data.
-
-Example resume contained:
 - Python
 - MATLAB
 - SolidWorks
-- German C1
-- English C1
+- German
+- English
+- SAP
 
-Example Job Description contained:
-- Python required
-- SAP required
-- German C1 required
-- MATLAB preferred
+The resume did not contain SAP.
 
-The returned JSON correctly:
-- extracted resume skills
-- extracted language proficiency
-- classified required and preferred JD skills
-- preserved evidence excerpts
-- kept SAP only in the Job Profile
-- did not add SAP to the Resume Profile
-- did not generate a match score
+The structured output correctly kept SAP out of the Resume Profile.
 
-This confirmed that resume and JD source separation worked correctly in the test.
+## PDF Association Issue
 
-### Frontend integration
+The real resume test exposed ambiguity from multi-column extraction.
 
-The frontend now performs the complete Day 3 flow:
+Guardrails were strengthened:
 
-1. User selects a PDF resume.
-2. User enters a Job Description.
-3. User clicks Analyze Match.
-4. The frontend calls /api/extract-resume.
-5. The resume PDF is converted to text.
-6. The frontend sends resumeText + jobDescription to /api/analyze.
-7. The server calls the LLM.
-8. Structured JSON is returned.
-9. The frontend displays temporary Resume Profile and Job Profile sections for development verification.
+- prefer uncertainty
+- do not force ambiguous degree/date/organization associations
+- do not reconstruct visual layout in the MVP
 
-Loading states distinguish:
-- resume extraction
-- AI analysis
+## Duplicate Paid Request Protection
 
-Extraction errors and AI analysis errors are handled separately.
+The frontend prevents repeated identical Analyze submissions.
 
-### Real resume issue found
+Changing:
 
-Testing with a real multi-column resume revealed an education association problem.
+- PDF, or
+- Job Description
 
-The LLM successfully extracted most education information, but PDF reading order caused one institution/date range to be associated with the wrong degree.
+permits a new analysis.
 
-Example:
-- Universität Stuttgart and 2020.10–2025.04 were incorrectly associated with a B.Sc. entry.
-
-The root issue was not missing text, but ambiguous ordering caused by flattened multi-column PDF extraction.
-
-Decision:
-Do not implement PDF layout reconstruction for the MVP.
-
-Instead, strengthen the LLM guardrail:
-- do not associate education fields unless the relationship is strongly supported
-- prefer null over guessed associations
-- preserve partially complete entries
-- record important ambiguity in uncertainties
-- do not merge separate education entries to create a more complete record
-
-After this change, the same resume was retested successfully.
-
-### Duplicate analysis issue found
-
-Another issue was discovered during frontend testing:
-
-Clicking Analyze Match again without changing the resume or Job Description triggered another paid LLM request.
-
-This was unnecessary and could create avoidable API cost.
-
-A small client-side protection was added:
-
-- after a successful analysis, unchanged inputs do not trigger another request
-- the existing result remains visible
-- changing the PDF enables a new analysis
-- changing the Job Description enables a new analysis
-- duplicate submissions while a request is running remain blocked
-
-No database, caching infrastructure, localStorage, or external dependency was added.
-
-This is a local duplicate-request protection only.
-
-Public deployment will still require separate rate limiting and cost-abuse protection.
-
-### Privacy and cost lessons
-
-LLM APIs are paid external services.
-
-Each real analysis may generate API cost.
-
-A public deployment must therefore not expose unlimited anonymous AI requests.
-
-Future deployment should include:
-- rate limiting
-- strict input limits
-- API usage/budget protection
-- possibly a predefined demo mode for portfolio visitors
-
-OpenAI API auto-recharge was disabled during development to keep spending controlled.
-
-### Manual tests
-
-Successfully tested:
-- backend structured analysis through PowerShell
-- real OpenAI API request
-- English structured extraction
-- resume/JD source separation
-- required vs preferred requirements
-- evidence preservation
-- frontend end-to-end analysis flow
-- real PDF resume analysis
-- education ambiguity handling
-- duplicate-click protection
-- changed Job Description triggers new analysis
-- changed PDF triggers new analysis
-
-### Validation
-
-- npm run lint passed
-- npm run build passed
-- /api/analyze returned valid structured JSON
-- frontend end-to-end flow passed manual testing
-- no final score is generated yet
-
-### What I learned
-
-- What an API key is and why it must stay server-side.
-- What `.env.local` is used for.
-- Difference between ChatGPT billing and OpenAI API billing.
-- Why structured output is more reliable than free-form LLM text.
-- Why a JSON schema is useful for frontend and later matching logic.
-- How Zod validates LLM output.
-- Why evidence-backed extraction reduces hallucination risk.
-- Why PDF reading order can create entity-association errors.
-- Why conservative uncertainty handling is safer than guessing.
-- Why repeated LLM calls have a real monetary cost.
-- Why public AI endpoints need abuse and cost protection.
-
-### Day 3 completed
+## Validation
 
 Completed:
-- OpenAI API integration
-- server-side /api/analyze endpoint
-- structured Resume Profile extraction
-- structured Job Profile extraction
-- multilingual-ready schema
-- evidence-backed extraction
-- uncertainty handling
-- frontend integration
-- live API testing
-- duplicate paid-request protection
-- education association guardrail
 
-Not implemented yet:
-- semantic match comparison
-- deterministic explainable scoring
-- matched / missing requirement logic
-- final result UI
-- resume improvement suggestions
-- public deployment rate limiting
-- deployment
+- controlled API test
+- real frontend integration
+- lint
+- production build
 
-### Next milestone for day 4
+## What I Learned
 
-Resume Profile + Job Profile
-→ semantic comparison
-→ deterministic explainable matching
-→ matched requirements
-→ missing / weak requirements
-→ final match score
+- Structured outputs dramatically reduce integration ambiguity.
+- Source separation is essential for resume integrity.
+- LLM extraction should not silently resolve parser uncertainty.
+- Product billing and ChatGPT billing are separate systems.
 
-## Day 4
+---
 
-### Goal
+# Day 4 — Semantic Matching and Deterministic Scoring
 
-Turn the structured Resume Profile and Job Profile from Day 3 into an explainable Resume ↔ Job Description match result.
+## Goal
 
-The main Day 4 principle was:
+Build explainable semantic matching while keeping the actual percentage deterministic.
 
-LLM
-→ semantic comparison
+## Architecture Decision
 
-Application code
-→ deterministic numerical scoring
+The application now separates:
 
-The LLM must not invent the final match percentage.
+```text
+semantic understanding
+```
 
+from:
 
-### Starting point
+```text
+score calculation
+```
 
-At the beginning of Day 4, the application already supported:
+The LLM performs semantic comparison.
 
-PDF Resume
-→ text extraction
-→ structured Resume Profile
+TypeScript calculates the final score.
 
-Job Description
-→ structured Job Profile
+## Endpoint
 
-The frontend could display both profiles, but no real matching or score existed yet.
+Implemented:
 
+```text
+POST /api/match
+```
 
-### Matching architecture decision
+## Stable Requirement IDs
 
-The matching pipeline was designed as:
-
-Resume Profile + Job Profile
-→ flatten Job Description requirements
-→ build Resume evidence catalogue
-→ LLM semantic comparison
-→ validate semantic output
-→ deterministic TypeScript scoring
-→ Match Result
-
-A separate endpoint was created:
-
-`POST /api/match`
-
-`/api/analyze` remains responsible only for structured Resume and Job Description extraction.
-
-This separation makes debugging easier:
-
-- incorrect extracted profile → inspect `/api/analyze`
-- incorrect semantic comparison → inspect `/api/match`
-- incorrect percentage → inspect deterministic scoring logic
-
-
-### Requirement representation
-
-The Job Profile is converted into individual requirements with stable application-generated IDs.
+Application code flattens Job Profile content into stable requirements.
 
 Examples:
 
-- `skill-0`
-- `experience-0`
-- `responsibility-0`
-- `education-0`
-- `language-0`
+```text
+skill-0
+experience-0
+responsibility-0
+education-0
+language-0
+```
 
-Each requirement includes:
+Resume evidence is also mapped into a stable evidence catalogue.
 
-- category
-- description
-- importance
-- Job Description evidence
+## Semantic Comparison Output
 
-Requirement importance is:
+The model is only allowed to return:
 
-- required
-- preferred
-- unspecified
+```text
+requirementId
+status
+explanation
+resumeEvidenceIds
+```
 
-Responsibilities currently default to `unspecified` because the Day 3 extraction schema does not assign explicit importance to them.
+Supported statuses:
 
+```text
+matched
+partial
+missing
+uncertain
+```
 
-### Resume evidence catalogue
+## Validation Rules
 
-Application code creates stable IDs for evidence already present in the Resume Profile.
+Application code checks:
 
-Examples:
+- every expected requirement is covered
+- no duplicate requirement IDs
+- no unknown requirement IDs
+- no unknown evidence IDs
+- matched requirements contain evidence
+- partial requirements contain evidence
+- missing requirements contain no evidence
+- output remains structurally valid
 
-- `skill-0-evidence-0`
-- `experience-0-evidence-0`
-- `experience-0-highlight-0-evidence-0`
-- `education-0-evidence-0`
-- `language-0-evidence-0`
+## Deterministic Scoring
 
-The semantic LLM may reference only these IDs.
+Requirement weights:
 
-It is not allowed to write arbitrary new resume evidence into the Match Result.
+```text
+required      = 2
+preferred     = 1
+unspecified   = 1
+```
 
-Application code rejects unknown evidence IDs.
+Match values:
 
+```text
+matched       = 1
+partial       = 0.5
+missing       = 0
+uncertain     = 0
+```
 
-### Match statuses
+Overall:
 
-Four statuses were defined.
+```text
+earned / possible × 100
+```
 
-#### matched
+rounded with TypeScript.
 
-Strong evidence supports the complete requirement.
+## Category Scores
 
-Clear semantic or multilingual equivalents are allowed.
+Implemented category scores for:
 
-Example:
+- Skills
+- Experience
+- Responsibilities
+- Education
+- Languages
 
-`FEM-Simulation`
-↔
-`finite element analysis`
+Empty categories return:
 
-#### partial
+```text
+null
+```
 
-Relevant evidence exists, but only part of the requirement is supported.
+and display:
 
-Example:
+```text
+N/A
+```
 
-JD:
-`5 years of Python experience`
+## Deterministic Tests
 
-Resume:
-`Python`
-
-The skill is supported, but the required duration is not.
-
-#### missing
-
-No relevant Resume evidence supports the requirement.
-
-Example:
-
-JD:
-`SAP`
-
-Resume:
-No SAP evidence.
-
-#### uncertain
-
-Potentially relevant evidence exists, but the relationship cannot be determined safely.
-
-This differs from partial:
-
-- partial = known but incomplete
-- uncertain = evidence or association itself is ambiguous
-
-
-### Semantic matching safeguards
-
-The LLM returns only:
-
-- requirement ID
-- matched / partial / missing / uncertain
-- short explanation
-- Resume evidence IDs
-
-The LLM does not return:
-
-- overall percentage
-- category percentages
-- numerical confidence
-- new resume claims
-- new requirements
-- new free-form resume evidence
-
-Application code validates that:
-
-- every JD requirement is compared exactly once
-- no unknown requirements appear
-- no duplicate requirements appear
-- no unknown evidence IDs appear
-- matched and partial results contain evidence
-- missing results contain no resume evidence
-
-This prevents the semantic comparison layer from inventing unsupported candidate information.
-
-
-### Deterministic scoring
-
-The selected MVP scoring rubric is:
-
-Importance weights:
-
-- required = 2
-- preferred = 1
-- unspecified = 1
-
-Status values:
-
-- matched = 1
-- partial = 0.5
-- missing = 0
-- uncertain = 0
-
-For every requirement:
-
-`earnedPoints = importanceWeight × statusValue`
-
-`possiblePoints = importanceWeight`
-
-Overall score:
-
-`total earned points / total possible points × 100`
-
-Scores are rounded to the nearest whole percentage.
-
-The LLM never calculates this percentage.
-
-
-### Category breakdown
-
-The same deterministic formula is calculated independently for:
-
-- skills
-- experience
-- responsibilities
-- education
-- languages
-
-If the Job Description contains no requirements in a category:
-
-- score = null
-- earnedPoints = 0
-- possiblePoints = 0
-
-The frontend displays this as:
-
-`N/A`
-
-rather than incorrectly displaying `0%`.
-
-The overall score is calculated directly from all individual requirements.
-
-It is not an average of category percentages.
-
-
-### Deterministic scoring test
-
-A controlled backend test used:
-
-Resume:
-- Python
-
-Job Description:
-- Python required
-- SAP required
-- five years of Python preferred
-
-Expected semantic result:
-
-- Python → matched
-- SAP → missing
-- five years Python → partial
-
-Manual calculation:
-
-Python:
-
-`2 × 1 = 2`
-
-SAP:
-
-`2 × 0 = 0`
-
-Five years Python:
-
-`1 × 0.5 = 0.5`
-
-Total earned:
-
-`2.5`
-
-Total possible:
-
-`5`
-
-Expected score:
-
-`2.5 / 5 × 100 = 50%`
-
-The `/api/match` endpoint returned:
-
-- overallScore = 50
-- skills score = 50
-- experience score = 50
-- unused categories = null
-
-The result matched the manual calculation exactly.
-
-
-### Automated scoring tests
-
-A dedicated deterministic scoring test was added.
-
-The tests cover:
-
-- required matched
-- required missing
-- preferred matched
-- partial
-- uncertain
-- empty category
-- multiple requirements with expected mathematical score
+Added scoring tests.
 
 Result:
 
-`7 / 7 passed`
+```text
+7 / 7 passing
+```
 
+## Controlled Scoring Test
 
-### Frontend integration
+Example:
 
-The frontend now runs the complete pipeline:
+```text
+Python required
+→ matched
 
-1. User selects a PDF.
-2. User enters a Job Description.
-3. User clicks Analyze Match.
-4. `/api/extract-resume` extracts resume text.
-5. `/api/analyze` creates Resume Profile and Job Profile.
-6. `/api/match` performs semantic comparison and deterministic scoring.
-7. The Match Result is displayed.
+SAP required
+→ missing
 
-Loading phases are:
+5 years Python preferred
+→ partial
+```
 
-- `Reading Resume...`
-- `Analyzing Resume and Job...`
-- `Calculating Match...`
+Expected overall result:
 
+```text
+50
+```
 
-### Match Result UI
+The deterministic scorer produced the expected value.
 
-The frontend now displays:
+## Frontend Integration
 
-- overall Match Score
+The frontend now performs:
+
+```text
+extract
+→ analyze
+→ match
+```
+
+Loading phases include:
+
+```text
+Reading Resume
+Analyzing Resume and Job
+Calculating Match
+```
+
+The UI displays:
+
+- overall score
 - category breakdown
-- matched requirements
-- partial requirements
-- missing requirements
-- uncertain requirements
-- requirement importance
-- explanation
-- Resume evidence
-
-Empty categories display:
-
-`N/A`
-
-Missing requirements do not display fabricated Resume evidence.
-
-The Day 3 structured profiles remain visible temporarily for development verification.
-
-
-### Paid-request behavior
-
-A successful complete analysis performs:
-
-- one `/api/analyze` LLM call
-- one `/api/match` LLM call
-
-No API calls are triggered by React effects or rerenders.
-
-Duplicate request protection remains active.
-
-If the user clicks Analyze again without changing the PDF or Job Description:
-
-- the existing result remains visible
-- no new paid request is sent
-
-If `/api/analyze` succeeds but `/api/match` fails:
-
-- the structured profiles are retained
-- retrying with unchanged input calls only `/api/match`
-- `/api/analyze` is not repeated unnecessarily
-
-
-### Real resume testing
-
-The matching system was tested using a real German mechanical-engineering resume.
-
-Multiple controlled Job Descriptions were created to test different matching situations.
-
-
-#### High-match engineering JD
-
-Tested requirements involving:
-
-- MATLAB
-- Python
-- SolidWorks
-- LabVIEW
-- laboratory experiments
-- technical data analysis
-- sensor calibration
-- quality testing
-- German proficiency
-
-Expected strong matches were identified correctly.
-
-
-#### Partial-match simulation JD
-
-Tested:
-
-- advanced Ansys
-- multiple years of finite element analysis
-- CAD
-- SolidWorks
-- Python
-- MATLAB
-
-The resume contains only basic Ansys Workbench knowledge, allowing the system to distinguish supported skills from stronger unsupported requirements.
-
-
-#### False-positive / low-match JD
-
-Tested requirements that are not supported by the resume:
-
-- SAP
-- CATIA
-- Siemens NX
-- five years of automotive experience
-- APQP
-- FMEA
-- Six Sigma
-
-The system did not incorrectly convert related engineering experience into full matches.
-
-
-#### German semantic matching
-
-A German Job Description was tested against the German resume.
-
-Examples included:
-
-- Laborversuche
-- technische Messdaten
-- MATLAB
-- Python
-- LabVIEW
-- optische Messtechnik
-- Sensorik und Kalibrierung
-
-Semantic relationships were classified correctly.
-
-
-#### Cross-language semantic matching
-
-An English optical-engineering Job Description was tested against the German resume.
-
-Examples:
-
-German Resume:
-
-`Design und Herstellung mikrodiffraktiver optischer Elemente`
-
-English JD:
-
-`Experience designing optical or micro-optical components`
-
-The system successfully recognized the semantic relationship across languages.
-
-Additional tested concepts included:
-
-- Zemax / ZemaxStudio
-- laboratory experiments
-- optical design
-- Python
-- SolidWorks
-- CAD
-- microfabrication
-
-
-### Manual Day 4 result
-
-All planned Day 4 tests passed:
-
-- obvious matches
-- obvious missing requirements
-- partial requirements
-- German matching
-- English matching
-- cross-language matching
-- false-positive resistance
-- evidence grounding
-- deterministic score calculation
-- empty-category handling
-- duplicate paid-call protection
-
-
-### Validation
-
-- `npm run test:scoring` passed: 7/7
-- `npm run lint` passed
-- TypeScript check passed
-- `npm run build` passed
-- `/api/match` controlled PowerShell test passed
-- full frontend pipeline passed
-- real CV/JD semantic tests passed
-
-
-### What I learned
-
-- Why semantic comparison and scoring should be separate responsibilities.
-- How deterministic scoring makes an AI result explainable.
-- Why the LLM should classify relationships rather than invent percentages.
-- How stable requirement IDs make LLM output easier to validate.
-- How evidence IDs reduce hallucinated resume evidence.
-- Difference between matched, partial, missing, and uncertain.
-- Why partial should not mean merely “somewhat related.”
-- Why multilingual matching benefits from semantic comparison instead of exact keywords.
-- Why related technologies should not automatically count as equivalent.
-- Why empty categories should be N/A instead of 0%.
-- How to manually verify a scoring function mathematically.
-- How automated tests can verify deterministic scoring independently from the LLM.
-- How to reduce repeated paid LLM requests in the frontend.
-
-
-### Day 4 completed
-
-Completed:
-
-- semantic Resume ↔ Job Description matching
-- multilingual semantic comparison
-- matched / partial / missing / uncertain classifications
-- evidence-ID grounding
-- deterministic match score
-- category score breakdowns
-- automated scoring tests
-- frontend Match Result integration
-- real CV/JD testing
-- false-positive testing
-- cross-language testing
-
-Not yet implemented:
-
-- resume improvement suggestions
-- final UI polish
-- production abuse protection
-- rate limiting
-- demo mode
-- deployment
-- final README / portfolio presentation
-
-
-### Next milestone
-
-Day 5:
-
-Match Result
-→ grounded resume improvement suggestions
-→ clearer final result presentation
-→ MVP UI/UX polish
-
-## Day 5
-
-### Goal
-
-Add safe, evidence-grounded resume improvement suggestions and polish the result UI into a portfolio-ready MVP experience.
-
-The main Day 5 principle was:
-
-Existing resume evidence
-→ may be highlighted or clarified
-
-Missing information
-→ must remain a gap
-
-Unsupported information
-→ must never be added or implied
-
-
-### Suggestion architecture
-
-The suggestion system was implemented as a deterministic layer inside the existing `/api/match` flow.
-
-Current flow:
-
-Resume Profile + Job Profile
-→ semantic comparison
-→ deterministic scoring
-→ deterministic suggestion builder
-→ final Match Result
-
-No third LLM request was added.
-
-A successful complete analysis still uses only:
-
-1. `/api/analyze` — structured Resume/JD extraction
-2. `/api/match` — semantic comparison
-
-Suggestion generation itself has zero additional AI cost.
-
-
-### Suggestion categories
-
-Suggestions are divided into three groups.
-
-#### Supported improvements
-
-Generated only for `matched` or `partial` requirements.
-
-For matched requirements:
-
-- action: increase visibility
-- existing resume evidence may be made easier to find
-- no new facts may be added
-
-For partial requirements:
-
-- action: clarify supported scope
-- existing supported evidence may be highlighted
-- a claim boundary explicitly states what is not supported
-
-Example:
-
-JD:
-`5 years of Python experience`
-
-Resume:
-`Python`
-
-Valid guidance:
-Make the existing Python evidence more visible.
-
-Claim boundary:
-The resume does not establish five years of Python experience.
-
-
-#### Gaps
-
-Generated for `missing` requirements.
-
-A missing requirement:
-
-- cannot become a resume improvement
-- contains no resume evidence
-- must be presented only as a gap
-- must not be added to the resume unless genuinely true
-
-Example:
-
-`SAP is required by the role but is not supported by the current resume.`
-
-
-#### Needs verification
-
-Generated for `uncertain` requirements.
-
-Uncertain items:
-
-- are not treated as supported
-- are not treated as definitely missing
-- are not rewritten
-- must be verified before the resume is changed
-
-
-### Resume integrity safeguards
-
-Suggestion generation is deterministic application code.
-
-The system does not use an LLM to write resume improvements.
-
-Suggestions are based only on:
-
-- validated Match Result requirements
-- existing Resume evidence
 - requirement status
-- Job Description language
+- explanations
+- resume evidence
 
-The system must not introduce unsupported:
+## Paid Call Reuse
 
-- skills
-- tools
-- employers
-- responsibilities
-- achievements
-- metrics
-- qualifications
-- certifications
-- proficiency levels
-- years of experience
+If `/api/analyze` succeeds but `/api/match` fails, the frontend can retry matching without unnecessarily repeating the Analyze call.
 
-Resume evidence is reused exactly as already validated.
+## Manual Scenario Testing
 
-Missing requirements never receive fabricated evidence.
+Test cases included:
 
+- high-match Job Description
+- partial FEA / Ansys requirement
+- false-positive SAP / CATIA / NX risk
+- German semantic matching
+- English/German cross-language matching
+- responsibility overreach
+- language requirements
 
-### Multilingual suggestions
+Day 4 manual tests passed.
 
-Suggestion language follows the Job Description language.
+## Known Requirement Duplication Issue
+
+Some Job Description requirements may appear semantically related across categories.
+
+Example:
+
+```text
+Mechanical Engineering degree
+```
+
+may be represented in more than one structured requirement.
+
+Requirement deduplication was noted as a possible future improvement but intentionally left outside the current MVP.
+
+## What I Learned
+
+- LLMs are useful for semantic comparison.
+- Final percentages do not need to be generated by an LLM.
+- Stable IDs make semantic output easier to validate.
+- Deterministic scoring makes behavior testable and explainable.
+
+---
+
+# Day 5 — Evidence-Grounded Resume Suggestions
+
+## Goal
+
+Add useful resume suggestions without encouraging fabricated qualifications.
+
+## Design Decision
+
+Do not add a third LLM call.
+
+Instead, generate suggestions deterministically from the validated Match Result.
+
+Reasons:
+
+- lower cost
+- easier safety enforcement
+- easier testing
+- lower risk of claim strengthening
+- simpler architecture
+
+## Suggestion Types
+
+Implemented:
+
+```text
+increase_visibility
+clarify_supported_scope
+protected_gap
+needs_verification
+```
+
+## Matched Requirements
+
+Matched requirements may produce:
+
+```text
+increase_visibility
+```
+
+The suggestion may recommend making existing evidence easier to notice.
+
+It must not invent new evidence.
+
+## Partial Requirements
+
+Partial requirements may produce:
+
+```text
+clarify_supported_scope
+```
+
+Each partial suggestion contains a claim boundary.
+
+The claim boundary prevents wording that is stronger than the resume evidence.
+
+## Missing Requirements
+
+Missing requirements become:
+
+```text
+protected_gap
+```
+
+The UI explicitly warns that the requirement is not supported.
+
+The application must not recommend adding it unless it is genuinely true.
+
+## Uncertain Requirements
+
+Uncertain requirements become:
+
+```text
+needs_verification
+```
+
+The application asks the user to verify rather than guessing.
+
+## Suggestion Priority
+
+Supported improvements are limited and deterministically prioritized.
+
+Typical priority:
+
+```text
+required partial
+required matched
+preferred partial
+preferred matched
+unspecified
+```
+
+Maximum supported improvement suggestions:
+
+```text
+5
+```
+
+## Suggestion Language
+
+Job Profile language controls suggestion language.
 
 Current behavior:
 
-- German JD → German suggestions
-- English JD → English suggestions
-- mixed or unknown language → English fallback
+```text
+de
+→ German
 
-Resume evidence remains in its original language.
+en
+→ English
 
+mixed / unknown
+→ English
+```
 
-### Suggestion tests
+Resume evidence remains in the original source language.
 
-Added deterministic suggestion tests covering:
+## No Automatic Bullet Rewriting
 
-- matched → increase visibility
-- partial → clarify supported scope
-- partial requires claim boundary
-- missing → gap only
-- uncertain → needs verification only
-- missing cannot become a supported improvement
-- supported improvements require Resume evidence
-- maximum five supported improvements
-- German templates
-- English templates
-- mixed/unknown English fallback
+The MVP intentionally does not generate rewritten resume bullets.
 
-Result:
+Reason:
 
-`10 / 10 passed`
+Automatic rewriting can accidentally strengthen:
 
-No OpenAI calls are made during suggestion tests.
+- responsibility
+- seniority
+- achievement
+- scope
+- metrics
+- years of experience
 
+This is outside the current safe MVP.
 
-### Frontend result redesign
+## Tests
 
-The Day 4 development-oriented result page was cleaned up.
+Suggestion tests:
 
-The Match Result is now the main output.
+```text
+10 / 10 passing
+```
 
-The frontend displays:
+Scoring tests:
 
-- Overall Match Score
-- Category breakdown
-- Matched requirements
-- Partial requirements
-- Missing requirements
-- Uncertain requirements
-- Resume Improvements
-- Gaps
-- Needs Verification
-- explanations
-- Resume evidence
-- claim boundaries for partial matches
+```text
+7 / 7 passing
+```
 
-Internal API field names are not shown directly to the user.
+Lint and production build also passed.
 
-Examples:
+## Frontend Result Polish
 
-`increase_visibility`
-→ presented as user-friendly improvement guidance
+Integrated:
 
-`gapsThatMustNotBeFabricated`
-→ presented as Gaps
+- suggestions
+- protected gaps
+- improved result layout
+- collapsed Technical Details for development
 
+## What I Learned
 
-### Technical details
-
-The earlier Day 2 / Day 3 development information no longer dominates the main interface.
-
-Extracted Resume Text, Resume Profile, and Job Profile are kept only as optional technical/debug information and are collapsed by default.
-
-
-### API cost behavior
-
-Day 5 does not increase the number of paid model calls.
-
-Normal successful analysis:
-
-- one `/api/analyze` call
-- one `/api/match` call
-
-Suggestions require no additional model request.
-
-Existing duplicate-request protection remains active.
-
-
-### Manual testing
-
-Day 5 was tested with multiple controlled and real Job Descriptions.
-
-Testing included:
-
-- high-match engineering roles
-- partial Ansys requirements
-- unsupported SAP requirements
-- CATIA
-- Siemens NX
-- automotive requirements
-- German Job Descriptions
-- English Job Descriptions
-- cross-language matching
-- responsibility overmatching cases
-
-The suggestion system correctly kept unsupported requirements as gaps and did not recommend fabricating them.
-
-Partial requirements retained explicit claim boundaries.
-
-
-### Validation
-
-- `npm run test:scoring` passed: 7/7
-- `npm run test:suggestions` passed: 10/10
-- `npm run lint` passed
-- TypeScript check passed
-- `npm run build` passed
-- frontend suggestion display passed manual testing
-- multilingual suggestion behavior passed
-- gap / partial / supported improvement behavior passed
-
-
-### What I learned
-
-- Not every AI feature needs another LLM call.
-- Deterministic logic can provide useful AI-product behavior with zero additional inference cost.
-- Resume suggestions are safer when grounded in already validated evidence.
-- Partial matches need explicit claim boundaries to prevent overstatement.
-- Missing requirements should remain gaps rather than becoming rewrite suggestions.
-- Schema validation guarantees structure but not factual truth, so evidence grounding still matters.
-- Separating matching, scoring, and suggestions makes the system easier to explain and debug.
-- Product-facing UI should hide development details unless the user explicitly wants them.
-
-
-### Day 5 completed
-
-Completed:
-
-- deterministic resume improvement suggestions
-- evidence-grounded improvement guidance
-- claim boundaries for partial matches
-- protected missing-requirement gaps
-- verification flow for uncertain matches
-- German and English suggestion templates
-- suggestion automated tests
-- final Match Result UI integration
-- development/debug information moved out of the main result view
-- no additional paid LLM calls
-
-Not yet implemented:
-
-- rewritten resume bullets
-- rate limiting
-- abuse protection
-- public demo mode
-- production deployment
-- final README / portfolio documentation
-
-
-### Next milestone
-
-Day 6:
-
-- deployment preparation
-- rate limiting
-- API cost protection
-- public demo strategy
-- environment configuration
-- production testing
+- Not every AI feature requires another AI call.
+- Deterministic post-processing can be safer and cheaper.
+- Resume suggestions should preserve a clear boundary between supported evidence and unsupported gaps.
 
 ---
 
-## Day 6 — Local deployment preparation
+# Day 6 — Public Deployment Protection
 
-### Scope completed
-
-- Added a compile-time-checked, completely fictional Match Result fixture.
-- Added **Try Example**, which renders that fixture directly without a PDF, Job Description, fetch request, API route, Upstash request, or OpenAI request.
-- Added Upstash Redis distributed limits: 10 PDF extractions per hour per client, one shared 6-per-hour client allowance across both paid routes, and one shared 40-per-day global paid allowance.
-- Replaced raw client addresses with salted HMAC-SHA-256 identifiers before limiter keys are created.
-- Added environment-specific Redis prefixes so Preview and Production counters remain separate.
-- Made paid routes fail closed before OpenAI when limiter configuration or Upstash verification is unavailable.
-- Bounded actual JSON body reads even when `Content-Length` is missing.
-- Added pre-OpenAI requirement and evidence-count caps to matching.
-- Added explicit OpenAI output-token limits and kept `store: false`.
-- Replaced provider-message logging with safe error category, status, code, and request-ID metadata.
-- Added `Cache-Control: no-store` to user-derived API responses.
-- Hid full extracted resume/profile technical details in production while retaining them locally.
-- Added a focused privacy notice and basic low-risk security headers.
-- Added deterministic Day 6 tests with fake limiter dependencies; no real Upstash or OpenAI requests are made by the tests.
-
-### Required server environment
-
-- `OPENAI_API_KEY`
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
-- `RATE_LIMIT_IP_SALT`
-
-None of these variables may use the `NEXT_PUBLIC_` prefix.
-
-### Scope deliberately deferred
-
-- Vercel deployment
-- authentication and accounts
-- analytics
-- OCR
-- new AI providers or additional model calls
-- changes to matching, scoring, or suggestion behavior
-
-### Validation
-
-- `npm run test:scoring` passed: 7/7
-- `npm run test:suggestions` passed: 10/10
-- `npm run test:day6` passed, including a full TypeScript check
-- `npm run lint` passed
-- `npm run build` passed with all three API routes built as dynamic server routes
-
-## Day 6
-
-### Goal
+## Goal
 
 Prepare the application for safe public portfolio deployment.
 
-The main Day 6 goals were:
-
-- prevent uncontrolled paid API usage
-- add a zero-cost public demo path
-- add server-side rate limiting
-- improve production privacy and security
-- prepare the application for Vercel deployment
-
-No matching, scoring, or suggestion logic was changed.
-
-
-### Public demo strategy
-
-A hybrid public portfolio strategy was implemented.
-
-The application now supports:
-
-1. Try Example
-2. Real AI analysis
-
-Try Example uses a fully fictional precomputed Match Result.
-
-It:
-
-- requires no PDF
-- requires no Job Description
-- makes no API request
-- makes no OpenAI request
-- makes no Upstash request
-- reuses the existing Match Result UI
-- costs $0 per use
-
-The fictional demo does not use the real developer resume or personal information.
-
-
-### Paid analysis protection
-
-Real AI analysis remains:
-
-PDF
-→ /api/extract-resume
-→ /api/analyze
-→ /api/match
-
-A successful real analysis uses:
-
-- one OpenAI call in `/api/analyze`
-- one OpenAI call in `/api/match`
-
-Server-side distributed rate limiting was added before paid requests.
-
-
-### Upstash rate limiting
-
-Upstash Redis was added using:
-
-- `@upstash/redis`
-- `@upstash/ratelimit`
-
-An in-memory limiter was intentionally not used because serverless instances do not share reliable process memory.
-
-Current limits:
-
-PDF extraction:
-
-- 10 requests per hour per client
-
-Paid AI routes:
-
-- `/api/analyze` and `/api/match` share 6 paid calls per hour per client
-
-Global protection:
-
-- 40 paid OpenAI calls per day across all clients
-
-A normal complete analysis consumes two paid calls.
-
-Therefore, one client can normally perform approximately three complete real analyses per hour.
-
-
-### Shared paid quota
-
-`/api/analyze` and `/api/match` intentionally share the same paid quota.
-
-They do not receive separate independent limits.
-
-This prevents a caller from bypassing the intended limit by alternating between endpoints.
-
-
-### Client privacy
-
-Raw IP addresses are not stored in Redis.
-
-The client address is converted into a pseudonymous identifier using:
-
-HMAC-SHA-256(client address, RATE_LIMIT_IP_SALT)
-
-Redis receives only the resulting hash and expiring counters.
-
-Environment-specific key prefixes are used:
-
-- development
-- preview
-- production
-
-This prevents local testing from consuming production quotas.
-
-
-### Rate-limit failure behavior
-
-Paid routes fail closed.
-
-If Upstash configuration is missing or the limiter cannot be verified:
-
-- the request returns HTTP 503
-- OpenAI is not called
-- the real analysis is temporarily unavailable
-- Try Example remains available
-
-If a quota is exhausted:
-
-- the request returns HTTP 429
-- the user receives a generic message
-- internal quota details are not exposed
-
-
-### Production hardening
-
-Additional production protections were added:
-
-- bounded JSON request reading
-- request-size protection even without Content-Length
-- maximum Match Result complexity
-- OpenAI output-token limit
-- safe generic configuration errors
-- safer provider-error logging
-- Cache-Control: no-store for user-derived API responses
-- basic security headers
-- production hiding of Technical Details
-- privacy notice near real AI analysis
-
-
-### Environment variables
-
-Local development now uses:
-
-- `OPENAI_API_KEY`
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
-- `RATE_LIMIT_IP_SALT`
-
-All remain server-side.
-
-None use `NEXT_PUBLIC_*`.
-
-`.env.local` remains ignored by Git.
-
-
-### Automated tests
-
-Added Day 6 deterministic tests for:
-
-- demo-mode behavior
-- allowed paid requests
-- per-client quota
-- shared analyze/match quota
-- global daily quota
-- fail-closed behavior
-- pseudonymous client identifiers
-- environment isolation
-- invalid-request rejection
-- demo fixture type safety
-
-Validation results:
-
-- scoring tests: 7/7 passed
-- suggestion tests: 10/10 passed
-- Day 6 tests: 12/12 passed
-- lint passed
-- TypeScript passed
-- production build passed
-- git diff check passed
-
-
-### Manual Try Example test
-
-Browser DevTools Network testing confirmed:
-
-- clicking Try Example produces the fictional result
-- no `/api/extract-resume` request
-- no `/api/analyze` request
-- no `/api/match` request
-- no Fetch/XHR request was created
-
-This confirmed that the public demo path has zero AI cost.
-
-
-### Manual real-analysis test
-
-A known real resume and previously tested Job Description were used.
-
-Browser Network showed exactly:
-
-- one `/api/extract-resume` request
-- one `/api/analyze` request
-- one `/api/match` request
-
-All returned HTTP 200.
-
-No duplicate requests were observed.
-
-
-### Upstash verification
-
-After one real analysis, the Upstash database showed active read/write commands and rate-limit keys.
-
-Observed key families included:
-
-- `resume-jd-matcher:development:paid-client:...`
-- `resume-jd-matcher:development:paid-global:...`
-- `resume-jd-matcher:development:pdf-extraction:...`
-
-Client identifiers were hexadecimal HMAC hashes.
-
-No raw local or public IP address was stored in the keys.
-
-
-### Fail-closed manual test
-
-The Upstash REST token environment variable was intentionally disabled.
-
-After restarting the application:
-
-- real analysis failed with HTTP 503
-- the UI displayed a generic temporary-unavailability message
-- the paid analysis pipeline did not continue normally
-
-After restoring the environment variable, normal analysis worked again.
-
-This verified the intended fail-closed behavior.
-
-
-### Production privacy test
-
-The application was tested using:
-
-`npm run build`
-`npm start`
-
-In production mode:
-
-- the normal Match Result UI remained available
-- full Technical Details were not shown
-- extracted Resume Text was not exposed through the development debug section
-- Resume Profile and Job Profile debug information were not displayed
-
-This verified development/production UI separation.
-
-
-### Cost protection layers
-
-The application now protects paid AI usage through several layers:
-
-1. frontend duplicate-request protection
-2. server-side input validation
-3. request-size and complexity caps
-4. per-client distributed rate limiting
-5. shared analyze/match paid quota
-6. global daily paid-call ceiling
-7. explicit OpenAI output limit
-8. zero-cost Try Example
-9. provider-side billing limits to be configured for deployment
-
-No single protection is treated as sufficient on its own.
-
-
-### What I learned
-
-- Frontend button protection is not a security boundary.
-- Public AI endpoints must assume users can call APIs directly.
-- Serverless rate limiting requires shared external state.
-- In-memory counters are unreliable across serverless instances.
-- Rate limiting must happen before paid model calls.
-- A global cost ceiling helps protect against attacks using multiple IP addresses.
-- Fail-closed behavior is safer for paid operations than silently bypassing protection.
-- IP addresses can be pseudonymized before storing rate-limit state.
-- A public portfolio demo does not need to spend money if a precomputed example can demonstrate the product.
-- Development debug information should not automatically appear in production.
-- Production privacy and cost controls are part of AI application architecture, not optional polish.
-
-
-### Day 6 completed
-
-Completed:
-
-- zero-cost Try Example
-- fictional typed demo fixture
-- distributed Upstash rate limiting
-- shared paid-call quota
-- global daily paid-call ceiling
-- HMAC client pseudonymization
-- fail-closed paid routes
-- request-size hardening
-- Match complexity limits
-- OpenAI output-token cap
-- safer production logging
-- no-store API responses
-- privacy notice
-- basic security headers
-- production hiding of debug details
-- Day 6 automated tests
-- local real-analysis limiter verification
-- manual fail-closed verification
-- production-mode privacy verification
-
-Not yet completed:
-
-- Vercel Preview deployment
-- Preview environment configuration
-- production environment configuration
-- production OpenAI budget limit
-- final public deployment
-- final README / portfolio polish
-
-
-### Next milestone
-
-Day 7:
-
-- deploy to Vercel Preview
-- configure production secrets
-- perform production-like smoke tests
-- deploy public production version
-- finalize README
-- prepare GitHub and resume project description
+No new core matching features were added.
+
+The Day 6 focus was:
+
+- zero-cost demo
+- rate limiting
+- cost control
+- privacy
+- request hardening
+- production debug removal
 
 ---
 
-## Day 7 — Final pre-deployment hardening
+## Zero-Cost Try Example
 
-### Code changes
+Added a fictional typed Match Result fixture.
 
-- Added a 100,000-character limit to successfully extracted resume text before `/api/extract-resume` returns it to the browser.
-- Oversized extracted text now returns a generic HTTP 413 response without including the extracted content.
-- Configured both OpenAI clients with `maxRetries: 0` and a 60-second request timeout.
-- A paid limiter decision now permits at most one OpenAI SDK request attempt; no application-level retry was added.
-- Existing OpenAI storage, output-token, validation, logging, and generic client-error behavior remains unchanged.
-- Extended the deterministic Day 6 protection tests for the extraction limit and OpenAI client configuration.
+Try Example:
 
-### Remaining deployment configuration
+- requires no upload
+- requires no Job Description
+- makes no Fetch/XHR request
+- makes no Next.js API request
+- makes no OpenAI request
+- makes no Upstash request
+- reuses the real Match Result UI
 
-Public production deployment should use a dedicated OpenAI project and API key. A deliberately low provider-side enforced spend limit must be configured before the public production deployment is made available.
+This gives portfolio visitors a free way to understand the product.
 
-This provider control is a deployment/configuration task rather than application code. It is not configured yet.
+The example contains fictional information only.
 
-### Validation
+---
 
-- `npm run test:scoring` passed: 7/7
-- `npm run test:suggestions` passed: 10/10
-- `npm run test:day6` passed: 14/14, including the TypeScript check
-- `npm run lint` passed
-- `npm run build` passed with all three API routes built as dynamic server routes
+## Distributed Rate Limiting
+
+Added:
+
+```text
+@upstash/redis
+@upstash/ratelimit
+```
+
+An in-memory `Map` was intentionally rejected because Vercel/serverless instances do not share reliable process memory.
+
+### PDF Extraction
+
+Limit:
+
+```text
+10 / hour / client
+```
+
+### Paid AI Routes
+
+`/api/analyze` and `/api/match` share:
+
+```text
+6 paid calls / hour / client
+```
+
+A normal complete analysis consumes:
+
+```text
+2 paid calls
+```
+
+Therefore, one client can normally perform approximately three complete analyses per hour.
+
+### Global Paid Ceiling
+
+Across all clients:
+
+```text
+40 paid OpenAI calls / day
+```
+
+This protects against abuse using multiple addresses.
+
+---
+
+## Pseudonymous Client Identity
+
+Raw IP addresses are not stored in Redis.
+
+Implemented:
+
+```text
+HMAC-SHA-256(client address, RATE_LIMIT_IP_SALT)
+```
+
+Upstash receives the hash rather than the raw client address.
+
+Environment-specific Redis namespaces were added.
+
+---
+
+## Fail-Closed Behavior
+
+If Upstash configuration is missing or limiter verification fails:
+
+```text
+HTTP 503
+```
+
+and OpenAI is not called.
+
+If the request exceeds quota:
+
+```text
+HTTP 429
+```
+
+Paid work is intentionally fail-closed.
+
+---
+
+## Bounded JSON Reading
+
+Added bounded request-body reading that does not rely only on `Content-Length`.
+
+This reduces request-size bypass risk.
+
+---
+
+## Match Complexity Limits
+
+Added maximums for Match requests:
+
+```text
+requirements ≤ 100
+resume evidence ≤ 300
+```
+
+---
+
+## OpenAI Output Cap
+
+Added:
+
+```text
+max_output_tokens: 12,000
+```
+
+to paid OpenAI routes.
+
+Existing requests continue to use:
+
+```text
+store: false
+```
+
+---
+
+## Production Privacy
+
+Added:
+
+- generic configuration errors
+- safer provider error handling
+- safe logging
+- `Cache-Control: no-store`
+- production hiding of Technical Details
+- privacy notice
+- security headers
+
+Technical Details remain available only during development.
+
+---
+
+## Environment Variables
+
+Local development now requires:
+
+```text
+OPENAI_API_KEY
+UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN
+RATE_LIMIT_IP_SALT
+```
+
+All values remain server-side.
+
+`.env.local` remains ignored by Git.
+
+---
+
+## Day 6 Automated Tests
+
+Initial protection tests passed.
+
+After later deployment-hardening additions, the Day 6 protection suite eventually reached:
+
+```text
+19 / 19 passing
+```
+
+---
+
+## Manual Zero-Cost Test
+
+Browser DevTools:
+
+```text
+Network
+→ Fetch/XHR
+```
+
+was inspected.
+
+Clicking Try Example created no requests.
+
+Result:
+
+```text
+Try Example zero-cost path
+PASS
+```
+
+---
+
+## Manual Real Analysis Test
+
+Using a known real resume and previously tested Job Description:
+
+```text
+/api/extract-resume → 200
+/api/analyze        → 200
+/api/match          → 200
+```
+
+Exactly one request to each endpoint was observed.
+
+No duplicate requests were created.
+
+---
+
+## Upstash Verification
+
+After one real analysis, Upstash showed rate-limit activity.
+
+Observed key families included:
+
+```text
+paid-client
+paid-global
+pdf-extraction
+```
+
+Client identifiers appeared as long hexadecimal HMAC hashes.
+
+No raw local or public IP address was stored.
+
+---
+
+## Manual Fail-Closed Test
+
+The Upstash REST token variable was intentionally made unavailable.
+
+After restarting the application:
+
+```text
+real analysis
+→ HTTP 503
+```
+
+The UI displayed a generic temporary-unavailability message.
+
+The normal paid pipeline did not proceed.
+
+After restoring the environment variable, normal functionality returned.
+
+Result:
+
+```text
+fail-closed behavior
+PASS
+```
+
+---
+
+## Production-Mode Privacy Test
+
+Ran:
+
+```bash
+npm run build
+npm start
+```
+
+In production mode:
+
+- normal Match Result UI remained visible
+- Technical Details were hidden
+- extracted resume debug text was hidden
+- Resume Profile debug output was hidden
+- Job Profile debug output was hidden
+
+Result:
+
+```text
+production debug-data protection
+PASS
+```
+
+---
+
+## Day 6 Lessons
+
+- Frontend controls are not security boundaries.
+- Public API routes must assume direct calls.
+- Paid work should be rate-limited before OpenAI is called.
+- Distributed serverless rate limiting requires shared external state.
+- Global cost ceilings complement per-client limits.
+- Fail-closed behavior is appropriate for paid public operations.
+- Raw IP addresses do not need to be stored to implement rate limiting.
+- A portfolio demo can demonstrate AI product behavior without spending AI tokens.
+- Production privacy is part of architecture, not cosmetic polish.
+
+---
+
+# Day 7 — Security Review, Preview, and Production Deployment
+
+## Goal
+
+Finish the MVP and deploy it publicly.
+
+Day 7 scope:
+
+```text
+final security review
+→ fix deployment blockers
+→ configure provider cost protection
+→ Vercel Preview
+→ smoke testing
+→ Vercel Production
+→ README / portfolio finish
+```
+
+Core matching/scoring/suggestion behavior was frozen.
+
+---
+
+## Final Pre-Deployment Review
+
+The final code review identified three blockers.
+
+### Blocker 1 — Extracted PDF Text Output Size
+
+Problem:
+
+A PDF can be smaller than 4 MB while decompressed extracted text is much larger.
+
+Returning very large text could:
+
+- consume excessive memory
+- exceed platform response limits
+- fail before `/api/analyze` applies its own limit
+
+### Fix
+
+Added:
+
+```text
+maximum extracted text
+= 100,000 characters
+```
+
+Behavior:
+
+```text
+≤ 100,000
+→ return normally
+
+> 100,000
+→ HTTP 413
+```
+
+Error:
+
+```text
+The extracted resume text is too large to analyze.
+```
+
+Oversized extracted text is never returned to the browser.
+
+---
+
+## Blocker 2 — Hidden OpenAI SDK Retries
+
+The OpenAI Node SDK default retry behavior could cause multiple upstream attempts for a single accepted limiter operation.
+
+This weakened the intended cost model:
+
+```text
+1 limiter event
+≠ necessarily 1 upstream attempt
+```
+
+### Fix
+
+Both paid OpenAI clients now use:
+
+```text
+maxRetries: 0
+timeout: 60_000
+```
+
+Existing:
+
+```text
+store: false
+max_output_tokens: 12_000
+```
+
+remain unchanged.
+
+New cost behavior:
+
+```text
+one accepted limiter operation
+→ at most one automatic OpenAI SDK attempt
+```
+
+No application retry loop was added.
+
+---
+
+## Blocker 3 — Provider-Side Spend Ceiling
+
+Application rate limiting is important but should not be the only financial boundary.
+
+### Fix
+
+Created / used a dedicated OpenAI project for the public deployment.
+
+Created a deployment-specific API key.
+
+Configured a deliberately low provider-side enforced hard spend limit.
+
+The project currently uses a small monthly hard ceiling appropriate for a portfolio demo.
+
+Automatic API recharge remains intentionally conservative.
+
+---
+
+## Validation After Blocker Fixes
+
+Results:
+
+```text
+Scoring
+7 / 7
+
+Suggestions
+10 / 10
+
+Deployment / protections
+14 / 14 at this stage
+
+TypeScript
+PASS
+
+Lint
+PASS
+
+Production build
+PASS
+```
+
+---
+
+## Vercel Setup
+
+Created a Vercel project connected to the GitHub repository.
+
+Configured server-side environment variables:
+
+```text
+OPENAI_API_KEY
+UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN
+RATE_LIMIT_IP_SALT
+```
+
+No values use:
+
+```text
+NEXT_PUBLIC_
+```
+
+The Vercel project uses the existing external Upstash database rather than creating another Redis integration.
+
+---
+
+## Preview Branch
+
+Created:
+
+```text
+day7-preview
+```
+
+and pushed it to GitHub.
+
+A Vercel Preview Deployment was created from this branch.
+
+---
+
+## First Preview Smoke Test
+
+Preview successfully served the application.
+
+Real analysis returned:
+
+```text
+/api/extract-resume → 200
+/api/analyze        → 200
+/api/match          → 200
+```
+
+Try Example also worked.
+
+However, Upstash showed:
+
+```text
+resume-jd-matcher:production:...
+```
+
+instead of:
+
+```text
+resume-jd-matcher:preview:...
+```
+
+This revealed an environment-resolution bug.
+
+---
+
+## Preview Namespace Bug
+
+The original rate-limit namespace logic used:
+
+```ts
+process.env.VERCEL_ENV || process.env.NODE_ENV || "development"
+```
+
+Problem:
+
+On a built Next.js deployment:
+
+```text
+NODE_ENV = production
+```
+
+for both Preview and Production.
+
+If `VERCEL_ENV` was unavailable in the runtime, Preview silently fell back to:
+
+```text
+production
+```
+
+This caused Preview traffic to consume the Production limiter namespace.
+
+The same fallback could also cause local:
+
+```bash
+npm start
+```
+
+to use Production Redis quotas.
+
+---
+
+## Environment Namespace Fix
+
+The deployment environment resolver was changed to:
+
+1. `VERCEL_ENV`
+2. `VERCEL_TARGET_ENV`
+3. if running on Vercel and neither is available: throw
+4. outside Vercel: `development`
+
+`NODE_ENV` is no longer used for Redis namespace selection.
+
+New expected behavior:
+
+```text
+local npm run dev
+→ development
+
+local npm start
+→ development
+
+Vercel Preview
+→ preview
+
+Vercel Production
+→ production
+
+Vercel missing environment metadata
+→ fail closed
+```
+
+This preserves environment isolation.
+
+---
+
+## Environment Resolver Tests
+
+Added deterministic coverage for:
+
+- `VERCEL_ENV=preview`
+- `VERCEL_ENV=production`
+- `VERCEL_ENV` precedence
+- `VERCEL_TARGET_ENV` fallback
+- missing Vercel environment metadata
+- local development
+- local production-mode Next.js
+- absence of `NODE_ENV` dependency
+
+The deployment protection suite increased to:
+
+```text
+19 / 19 passing
+```
+
+Additional validation:
+
+```text
+Scoring
+7 / 7
+
+Suggestions
+10 / 10
+
+TypeScript
+PASS
+
+Lint
+PASS
+
+Production build
+PASS
+```
+
+---
+
+## Second Preview Smoke Test
+
+The fix was pushed to:
+
+```text
+day7-preview
+```
+
+A fresh Preview deployment was created.
+
+Upstash now showed:
+
+```text
+resume-jd-matcher:preview:paid-client:...
+resume-jd-matcher:preview:paid-global:...
+resume-jd-matcher:preview:pdf-extraction:...
+```
+
+Result:
+
+```text
+Preview environment isolation
+PASS
+```
+
+Final Preview validation:
+
+- application loads
+- Try Example works
+- real PDF upload works
+- all three APIs return 200
+- OpenAI works
+- Upstash works
+- Preview namespace works
+- no production debug content is visible
+
+Result:
+
+```text
+Vercel Preview
+PASS
+```
+
+---
+
+## Merge to Main
+
+The validated Preview branch was merged into:
+
+```text
+main
+```
+
+The merge completed without conflict.
+
+The updated `main` branch was pushed to GitHub.
+
+---
+
+## Production Deployment
+
+Vercel created the final Production deployment from `main`.
+
+During the first Production test, the rate limiter correctly blocked the developer's own request.
+
+Reason:
+
+Earlier Preview testing had accidentally created old `production:` limiter counters before the namespace bug was fixed.
+
+These stale test-only Production limiter keys were removed before the public launch.
+
+The actual rate-limiter behavior itself was correct.
+
+This incident also verified:
+
+```text
+quota exceeded
+→ user-visible rate-limit message
+→ request blocked
+```
+
+---
+
+## Final Production Smoke Test
+
+After removing stale pre-launch test counters:
+
+```text
+Production page
+PASS
+
+Try Example
+PASS
+
+PDF extraction
+PASS
+
+/api/extract-resume
+200
+
+/api/analyze
+200
+
+/api/match
+200
+
+OpenAI deployment key
+PASS
+
+Upstash production namespace
+PASS
+
+Production debug protection
+PASS
+```
+
+New Redis keys correctly used:
+
+```text
+resume-jd-matcher:production:...
+```
+
+Preview and Production were now isolated.
+
+Result:
+
+```text
+Production deployment
+PASS
+```
+
+---
+
+## README Finalization
+
+The project README was rewritten as a public portfolio document.
+
+It now explains:
+
+- product purpose
+- architecture
+- semantic matching
+- deterministic scoring
+- hallucination safeguards
+- resume suggestions
+- multilingual behavior
+- PDF limitations
+- cost protection
+- privacy
+- rate limiting
+- local setup
+- testing
+- deployment
+- known limitations
+- development journey
+
+The README links to the public Production deployment.
+
+---
+
+## Final Repository State
+
+Final Git state:
+
+```text
+On branch main
+Your branch is up to date with 'origin/main'.
+
+nothing to commit, working tree clean
+```
+
+This confirms:
+
+```text
+local main
+=
+GitHub origin/main
+```
+
+No pending local changes remain.
+
+---
+
+# Final Test Summary
+
+## Scoring
+
+```text
+7 / 7 passing
+```
+
+## Suggestions
+
+```text
+10 / 10 passing
+```
+
+## Deployment / Protection
+
+```text
+19 / 19 passing
+```
+
+## Additional Validation
+
+```text
+TypeScript
+PASS
+
+Lint
+PASS
+
+Production build
+PASS
+
+Preview smoke test
+PASS
+
+Production smoke test
+PASS
+```
+
+---
+
+# Final Architecture
+
+```text
+PDF Resume
+    ↓
+Next.js /api/extract-resume
+    ↓
+unpdf extraction
+    ↓
+Structured Resume + Job analysis
+    ↓
+OpenAI structured output
+    ↓
+Stable Job Requirements + Resume Evidence
+    ↓
+OpenAI semantic comparison
+    ↓
+TypeScript validation
+    ↓
+Deterministic scoring
+    ↓
+Deterministic evidence-grounded suggestions
+    ↓
+Match Result UI
+```
+
+Public protection:
+
+```text
+User
+ ↓
+Vercel
+ ↓
+server-side validation
+ ↓
+Upstash rate limiter
+ ↓
+OpenAI
+```
+
+Cost protection:
+
+```text
+Try Example
+→ $0
+
+Real analysis
+→ per-client quota
+→ global daily ceiling
+→ maxRetries: 0
+→ output limits
+→ provider-side hard spend limit
+```
+
+---
+
+# Seven-Day Development Summary
+
+```text
+Day 1
+→ Frontend prototype
+
+Day 2
+→ PDF extraction
+
+Day 3
+→ Structured LLM analysis
+
+Day 4
+→ Semantic matching + deterministic scoring
+
+Day 5
+→ Evidence-grounded suggestions
+
+Day 6
+→ Public demo + cost / abuse / privacy protection
+
+Day 7
+→ Security hardening + Preview + Production deployment
+```
+
+---
+
+# Main Lessons Learned
+
+## AI Architecture
+
+Use LLMs for tasks where semantic understanding is useful.
+
+Do not automatically delegate:
+
+- scoring
+- IDs
+- validation
+- evidence integrity
+- safety rules
+- rate limiting
+- cost control
+
+to an LLM.
+
+---
+
+## Hallucination Resistance
+
+Resume applications require unusually strict evidence boundaries.
+
+When data is ambiguous:
+
+```text
+uncertainty
+```
+
+is safer than:
+
+```text
+plausible fabrication
+```
+
+---
+
+## Deterministic Logic
+
+Deterministic scoring and suggestions are:
+
+- cheaper
+- easier to test
+- easier to explain
+- easier to debug
+- safer
+
+than generating all product behavior through an LLM.
+
+---
+
+## Public AI Cost Safety
+
+A public AI endpoint needs layered protection.
+
+Frontend controls alone are insufficient.
+
+Useful layers include:
+
+```text
+input validation
+rate limiting
+global quotas
+retry control
+provider hard spending limits
+zero-cost demo paths
+```
+
+---
+
+## Serverless Deployment
+
+Serverless production behavior differs from local development.
+
+Important lessons included:
+
+- shared rate-limit state must live outside process memory
+- `NODE_ENV=production` does not mean Vercel Production
+- Preview and Production must use separate namespaces
+- deployment metadata should fail closed when required for financial protection
+
+---
+
+## Privacy
+
+Debug information that is useful during development should not automatically appear in Production.
+
+Resume content should not be logged or stored unnecessarily.
+
+External-provider privacy claims should not be stronger than what can actually be guaranteed.
+
+---
+
+# MVP Status
+
+The one-week v1 portfolio MVP is complete and publicly deployed.
+
+Core product scope is frozen.
+
+Future changes should be treated as post-MVP improvements rather than unfinished Day 1–7 work.
